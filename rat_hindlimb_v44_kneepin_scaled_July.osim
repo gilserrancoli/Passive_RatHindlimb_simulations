@@ -383,11 +383,11 @@
 						<groups />
 					</WrapObjectSet>
 					<!--The mass of the body (kg)-->
-					<mass>0.0020910000000000008</mass>
+					<mass>0.013509999999999999</mass>
 					<!--The location (Vec3) of the mass center in the body frame.-->
 					<mass_center>0 -0.014935991420245206 0</mass_center>
 					<!--The elements of the inertia tensor (Vec6) as [Ixx Iyy Izz Ixy Ixz Iyz] measured about the mass_center and not the body origin.-->
-					<inertia>1.6792859117681643e-07 2.5914906045805005e-08 1.6792859117681643e-07 0 0 0</inertia>
+					<inertia>1.0860000000000001e-06 2.7e-08 1.0860000000000001e-06 0 0 0</inertia>
 				</Body>
 				<Body name="tibia">
 					<!--The geometry used to display the axes of this Frame.-->
@@ -558,11 +558,11 @@
 						<groups />
 					</WrapObjectSet>
 					<!--The mass of the body (kg)-->
-					<mass>0.0020910000000000008</mass>
+					<mass>0.0053800000000000002</mass>
 					<!--The location (Vec3) of the mass center in the body frame.-->
 					<mass_center>0 0.015227524810524593 0</mass_center>
 					<!--The elements of the inertia tensor (Vec6) as [Ixx Iyy Izz Ixy Ixz Iyz] measured about the mass_center and not the body origin.-->
-					<inertia>1.745481158240768e-07 2.6936437627172341e-08 1.745481158240768e-07 0 0 0</inertia>
+					<inertia>8.2040000000000001e-07 1.0800000000000001e-08 8.2040000000000001e-07 0 0 0</inertia>
 				</Body>
 				<Body name="foot">
 					<!--The geometry used to display the axes of this Frame.-->
@@ -596,11 +596,11 @@
 						<groups />
 					</WrapObjectSet>
 					<!--The mass of the body (kg)-->
-					<mass>0.0020910000000000008</mass>
+					<mass>0.0019300000000000001</mass>
 					<!--The location (Vec3) of the mass center in the body frame.-->
 					<mass_center>0.0076464310330199197 -0.0054617364521570852 0</mass_center>
 					<!--The elements of the inertia tensor (Vec6) as [Ixx Iyy Izz Ixy Ixz Iyz] measured about the mass_center and not the body origin.-->
-					<inertia>3.1187855783634852e-08 2.0209730547795389e-07 2.0209730547795389e-07 0 0 0</inertia>
+					<inertia>1.095e-08 2.85e-08 3.7270000000000002e-08 -1.52e-08 0 0</inertia>
 				</Body>
 				<Body name="pelvis_top_marker">
 					<!--The geometry used to display the axes of this Frame.-->
@@ -1990,6 +1990,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2080,6 +2082,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2170,6 +2174,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2260,6 +2266,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2358,6 +2366,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2448,6 +2458,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2530,6 +2542,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2612,6 +2626,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2685,6 +2701,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2767,6 +2785,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2857,6 +2877,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -2930,6 +2952,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3003,6 +3027,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3085,6 +3111,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3167,6 +3195,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3240,6 +3270,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3313,6 +3345,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3386,6 +3420,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3459,6 +3495,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3532,6 +3570,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3605,6 +3645,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3678,6 +3720,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3751,6 +3795,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3824,6 +3870,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -3914,6 +3962,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4004,6 +4054,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4094,6 +4146,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4184,6 +4238,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4257,6 +4313,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4330,6 +4388,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4403,6 +4463,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4476,6 +4538,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4566,6 +4630,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4656,6 +4722,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4746,6 +4814,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4836,6 +4906,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -4926,6 +4998,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>
@@ -5016,6 +5090,8 @@
 					<GeometryPath name="path">
 						<!--Default appearance attributes for this AbstractGeometryPath.-->
 						<Appearance>
+							<!--Flag indicating whether the associated Geometry is visible or hidden.-->
+							<visible>false</visible>
 							<!--The color, (red, green, blue), [0, 1], used to display the geometry. -->
 							<color>0.80000000000000004 0.10000000000000001 0.10000000000000001</color>
 						</Appearance>

@@ -10,7 +10,7 @@
 
 nframes=size(marker_data,1);
 nframe=1:nframes;
-time=0:0.01:(nframes-1)/100;
+% time=0:0.01:(nframes-1)/100;
 nmarkers=size(markers_OpenSim,2);
 % first initialise the header with a column for the Frame # and the Time
 % also initialise the format for the columns of data to be written to file
@@ -22,7 +22,7 @@ format_text = '%i\t%2.4f\t';
 data_out =[];
 data_struct.Start_Frame=nframe(1);
 data_struct.End_Frame=nframe(end);
-data_struct.Rate=100;
+data_struct.Rate=1000;
 nrows=nframes;
 data_struct.units='mm';
  
