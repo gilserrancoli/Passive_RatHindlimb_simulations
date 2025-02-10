@@ -811,7 +811,6 @@ for i=1
         else
             inputs_f_coll=[inputs_f_coll {FTtilde_k,FTtilde_j,...
                 dFTtilde_j, lTs_k, lM0_k}];
-            
             outputs_f_coll=[outputs_f_coll {[FT_j{1} FT_j{2} FT_j{3}],...
                 [lMtilde_j{1} lMtilde_j{2} lMtilde_j{3}],...
                 [lTtilde_j{1} lTtilde_j{2} lTtilde_j{3}]}];
@@ -853,9 +852,6 @@ for i=1
         inputs_f_coll_map2=[inputs_f_coll_map2 ...
             {repmat(Kstiff,1,N),repmat(Ddamp,1,N),repmat(theta0,1,N)}];
         outputs_f_coll_map2=cell(1,1);
-
-    else
-        keyboard;
     end
 
  

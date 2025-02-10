@@ -18,7 +18,9 @@ function PlotMTdata(sol_val,bounds,scaling,muscle_names,i)
     subplot(2,1,1);
     h=bar(mat2comp2(1:19,:));
     set(gca,'XTick',1:19,'XTickLabels',muscle_names(1:19));
-    legend({'lM0_{LB}','lM0','lM0_{UB}','lTs_{LB}','lTs','lTs_{UB}'});
+    legend({'lM0_{LB}','lM0','lM0_{UB}','lTs_{LB}','lTs','lTs_{UB}','mean lMT'});
+    ylabel('[m]');
     subplot(2,1,2);
     h2=bar(mat2comp2(20:end,:));
     set(gca,'XTick',1:19,'XTickLabels',muscle_names(20:end));
+    ylabel('[m]');

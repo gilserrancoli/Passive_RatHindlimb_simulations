@@ -1,3 +1,4 @@
+clear all;
 import casadi.*
 method='legendre';
 
@@ -14,21 +15,24 @@ Options.trialstotrack='all'; %if 'all', all trials are taken
 Options.penalizeHighFTtilde=1;
 Options.penalizeFTtot=0;
 Options.penalizeoutoflMtilde1=0;
+Options.optInertiaParam=1;
 
-Options.optimizeMuscleProp=1;
+Options.optimizeMuscleProp=0;
 Options.optimizePassiveJointEl=1;
 
 %% 
-N=6;
+N=20;
 d=3;
 [tau_root,C,D,B] = CollocationScheme(d,method);
 
+main_folder='DataDecember';
 % trials={'h8'}; main_folder='DataMay';
-trials='all';main_folder='DataSeptember';
+% trials='all';main_folder='DataSeptember';
+% trials={'data6'};
+expdata=LoadData(N,d,tau_root,main_folder);
+% expdata=LoadData(N,d,tau_root,trials,main_folder);
 
-trials={'data6'};
-expdata=LoadData(N,d,tau_root,trials,main_folder);
-
+current_folder=pwd;
 if Options.optimizeMuscleProp
     nmuscles=38;
     muscle_names={'BFa','BFp','CF','STp','STa','SM','QF','TFL','GMa','GMe',...
@@ -124,7 +128,11 @@ if Options.optimizeMuscleProp
 end
 
 %% Load external function
-F = external('F','RightRatHindlimb_Zhong.dll');   
+if Options.optInertiaParam
+    F = external('F','RightRatHindlimb_Zhong_InertiaVar.dll')
+else
+    F = external('F','RightRatHindlimb_Zhong.dll');   
+end
 
 ndofs=7; %ndofs to construct polynomials must be 7 here
 if Options.optimizeMuscleProp
@@ -172,13 +180,13 @@ end
 W.lM0lit=0.00001;
 W.min_maxa=0.1;
 W.state_for_reg=1e-6;
-W.mindstate=0.01; %0.1
-W.qtrack=1; %10
-W.qdottrack=1;
+W.mindstate=0.001; %0.1
+W.qtrack=10; %10
+W.qdottrack=0; %0.1
 W.penalizeHighFTtilde=10;
-W.Kstiff=10;
-W.Ddamp=10;
-W.theta0=10;
+W.Kstiff=0.01;
+W.Ddamp=0.01;
+W.theta0=0.01;
 W.penalizeFTtot=1e-4;
 W.penalizeoutoflMtilde1=0;
 
@@ -223,6 +231,8 @@ bounds_theta0.lower=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'-180*pi
 bounds.theta0.lower=bounds_theta0.lower(find(Options.dofs_to_track));
 bounds_theta0.upper=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'+180*pi/180;
 bounds.theta0.upper=bounds_theta0.upper(find(Options.dofs_to_track));
+bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9 -0.001] %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
+bounds.inertiaParam.upper=[0.025 1.e-5 -0.005 0.015 1e-6 0.020 0.0050 1e-7      0] %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 
 %% Define guesses
 if Options.optimizeMuscleProp
@@ -255,7 +265,7 @@ end
 % guess.theta0=[0.0135, -0.1651,-0.0637,-1.1571,-0.1768]'; % computed as the mean of all initial values, TO BE REcalculated
 guess_theta0=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'; % computed as the mean of all initial values for h8 perturb1
 guess.theta0=guess_theta0(find(Options.dofs_to_track)); %take only the dofs that are tracked
-
+guess.inertiaParam=[0.01351 1.086e-06 -0.014936 0.00538 8.204e-07 0.0152275 0.00193 3.727e-08 -0.00546174];
 
 %populate names of the constraints
 g1_names=[];
@@ -312,42 +322,19 @@ if Options.optimizeMuscleProp
     tendon_damping_k=MX.sym('tendon_damping_k',1,1);
 end
 
-if Options.optimizePassiveJointEl
-    Kstiff=opti.variable(3,1);
-    opti.subject_to(bounds.K.lower<= Kstiff <= bounds.K.upper);
-    opti.set_initial(Kstiff,guess.Kstiff);
-    g1_names=[g1_names; repmat({'Kstiff_bounds'},3,1)];
-    Ddamp=opti.variable(3,1);
-    opti.subject_to(bounds.D.lower<=Ddamp <= bounds.D.upper);
-    opti.set_initial(Ddamp,guess.Ddamp);
-    g1_names=[g1_names; repmat({'Ddamp_bounds'},3,1)];
-    theta0=opti.variable(sum(Options.dofs_to_track),1);
-    opti.subject_to(bounds.theta0.lower<= theta0 <= bounds.theta0.upper);
-    opti.set_initial(theta0,guess.theta0);
-    g1_names=[g1_names; repmat({'theta0_bounds'},3,1)];
-    Kstiff_k=MX.sym('Kstiff_k',3,1);
-    Ddamp_k=MX.sym('Ddamp_k',3,1);
-    theta0_k=MX.sym('theta0_k',sum(Options.dofs_to_track),1); %only needed for orderPassiveJoint==1 and for collmap when the order is 1
-else
-    Kstiff=zeros(3,1);
-    Ddamp=zeros(3,1);
-    theta0=zeros(sum(Options.dofs_to_track),1);
+if Options.optInertiaParam
+    inertiaParam=opti.variable(9,1);
+    opti.subject_to(bounds.inertiaParam.lower'<=inertiaParam<=bounds.inertiaParam.upper');
+    opti.set_initial(inertiaParam,guess.inertiaParam');
+    g1_names=[g1_names; repmat({'inertiaParam_bounds'},9,1)];
+    inertiaParam_k=MX.sym('inertiaParam_k',9,1);
 end
-
 
 J=0;
 
 if Options.optimizeMuscleProp&Options.optimizelM0
     J=J+W.lM0lit*sum((((lM0*scaling.lM0)-MTparam(2,:)')./MTparam(2,:)').^2);
     J_lM0=W.lM0lit*sum((((lM0*scaling.lM0)-MTparam(2,:)')./MTparam(2,:)').^2);
-end
-
-
-if Options.optimizePassiveJointEl
-    J=J+W.Kstiff*sum(Kstiff.^2);
-    J=J+W.Ddamp*sum(Ddamp.^2);
-    J=J+W.theta0*sum((theta0-guess.theta0).^2);
-    J_passjoint=W.Kstiff*sum(Kstiff.^2)+W.Ddamp*sum(Ddamp.^2)+W.theta0*sum((theta0-guess.theta0).^2);
 end
 
 clear FTtilde
@@ -366,12 +353,14 @@ nametrials=fieldnames(expdata);
 
 % for i=1:length(nametrials)
 % for i=[1 3 6:2:12]
-for i=1
+for i=1:length(nametrials)
     eq_constr={};
     ineq_constr={};
     J_d=0;
     J1{i}=0;
+    J1b{i}=0;
     J2{i}=0;
+    J2b{i}=0;
     J3{i}=0;
     J4{i}=0;
     J5{i}=0;
@@ -413,6 +402,35 @@ for i=1
         dFTtilde_j=MX.sym('dFTtilde_j',nmuscles,d);
     end
     
+    if Options.optimizePassiveJointEl
+        Kstiff{i}=opti.variable(3,1);
+        opti.subject_to(bounds.K.lower<= Kstiff{i} <= bounds.K.upper);
+        opti.set_initial(Kstiff{i},guess.Kstiff);
+        g1_names=[g1_names; repmat({'Kstiff_bounds'},3,1)];
+        Ddamp{i}=opti.variable(3,1);
+        opti.subject_to(bounds.D.lower<=Ddamp{i} <= bounds.D.upper);
+        opti.set_initial(Ddamp{i},guess.Ddamp);
+        g1_names=[g1_names; repmat({'Ddamp_bounds'},3,1)];
+        theta0{i}=opti.variable(sum(Options.dofs_to_track),1);
+        opti.subject_to(bounds.theta0.lower<= theta0{i} <= bounds.theta0.upper);
+        opti.set_initial(theta0{i},guess.theta0);
+        g1_names=[g1_names; repmat({'theta0_bounds'},3,1)];
+        Kstiff_k=MX.sym('Kstiff_k',3,1);
+        Ddamp_k=MX.sym('Ddamp_k',3,1);
+        theta0_k=MX.sym('theta0_k',sum(Options.dofs_to_track),1); %only needed for orderPassiveJoint==1 and for collmap when the order is 1
+    else
+        Kstiff=zeros(3,1);
+        Ddamp=zeros(3,1);
+        theta0=zeros(sum(Options.dofs_to_track),1);
+    end
+
+    if Options.optimizePassiveJointEl
+        J=J+W.Kstiff*sum(Kstiff{i}.^2);
+        J=J+W.Ddamp*sum(Ddamp{i}.^2);
+        J=J+W.theta0*sum((theta0{i}-guess.theta0).^2);
+        J_passjoint=W.Kstiff*sum(Kstiff{i}.^2)+W.Ddamp*sum(Ddamp{i}.^2)+W.theta0*sum((theta0{i}-guess.theta0).^2);
+    end
+
     QsQdot_prescribed{i}(:,1:2:7*2)=expdata.(nametrials{i}).q(:,2:8); %pelvis dofs and sacroiliac_flx are prescribed
     QsQdot_prescribed{i}(:,2:2:7*2)=expdata.(nametrials{i}).qdot(:,2:8);
     Qd2dot_prescribed{i}=expdata.(nametrials{i}).qd2dot(:,2:8);
@@ -479,7 +497,11 @@ for i=1
         all_Qd2dot(1:7)=Qd2dots_prescribed_j(1:7,j);
         all_Qd2dot(8:14)=Qd2dots_j(:,j)'.*scaling.qd2dot;
         
-        out=F([all_QsQdot';all_Qd2dot';forces_prescribed_j(:,j)]);
+        if Options.optInertiaParam
+            out=F([all_QsQdot';all_Qd2dot';forces_prescribed_j(:,j);inertiaParam_k]);
+        else
+            out=F([all_QsQdot';all_Qd2dot';forces_prescribed_j(:,j)]);
+        end
         
         out_d{i}(:,j)=out;
         if Options.optimizeMuscleProp
@@ -631,117 +653,135 @@ for i=1
         end
 
         %Cost function
-        J_d=J_d+B(j+1)*W.qtrack*sum((QsQdots_j(1:2:end,j)-QsQdots_totrack_j(1:2:end,j)).^2);
-%         J_d=J_d+B(j+1)*W.qdottrack*sum((QsQdots_j(2:2:end,j)-QsQdots_totrack_j(2:2:end,j)).^2);
-        J_d=J_d+B(j+1)*W.mindstate*sum(dFTtilde_j(:,j).^2);
+        J_d=J_d+B(j+1)*W.qtrack*sum((QsQdots_j(1:2:end,j)-QsQdots_totrack_j(1:2:end,j)).^2)*h{i};
+        J_d=J_d+B(j+1)*W.qdottrack*sum((QsQdots_j(2:2:end,j)-QsQdots_totrack_j(2:2:end,j)).^2)*h{i};
 
+        J_d=J_d+B(j+1)*W.mindstate*sum(Qd2dots_j(:,j).^2)*h{i};
         if Options.optimizeMuscleProp
+            J_d=J_d+B(j+1)*W.mindstate*sum(dFTtilde_j(:,j).^2)*h{i};
+            
             if Options.penalizeHighFTtilde
-                J_d=J_d+B(j+1)*W.penalizeHighFTtilde*sum(FTtilde_j(:,j).^2);
+                J_d=J_d+B(j+1)*W.penalizeHighFTtilde*sum(FTtilde_j(:,j).^2)*h{i};
             end
             if Options.penalizeFTtot
-                J_d=J_d+B(j+1)*W.penalizeFTtot*sum(FT_j{j}.^2);
+                J_d=J_d+B(j+1)*W.penalizeFTtot*sum(FT_j{j}.^2)*h{i};
             end
             if Options.penalizeoutoflMtilde1
-                J_d=J_d+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2);
+                J_d=J_d+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2)*h{i};
             end
         end
         %for debug
-        J1{i}=J1{i}+B(j+1)*W.qtrack*sum((QsQdots_j(1:2:end,j)-QsQdots_totrack_j(1:2:end,j)).^2); %track q
-        J2{i}=J2{i}+B(j+1)*W.mindstate*sum(dFTtilde_j(:,j).^2);
+        J1{i}=J1{i}+B(j+1)*W.qtrack*sum((QsQdots_j(1:2:end,j)-QsQdots_totrack_j(1:2:end,j)).^2)*h{i}; %track q
+        J1b{i}=J1b{i}+B(j+1)*W.qdottrack*sum((QsQdots_j(2:2:end,j)-QsQdots_totrack_j(2:2:end,j)).^2)*h{i}; %track qdot
+        J2{i}=J2{i}+B(j+1)*W.mindstate*sum(Qd2dots_j(:,j).^2)*h{i};
+
         if Options.optimizeMuscleProp
+            J2b{i}=J2b{i}+B(j+1)*W.mindstate*sum(dFTtilde_j(:,j).^2)*h{i};
             if Options.penalizeHighFTtilde
-                J3{i}=J3{i}+B(j+1)*W.penalizeHighFTtilde*sum(FTtilde_j(:,j).^2);
+                J3{i}=J3{i}+B(j+1)*W.penalizeHighFTtilde*sum(FTtilde_j(:,j).^2)*h{i};
             end
             if Options.penalizeFTtot
-                J4{i}=J4{i}+B(j+1)*W.penalizeFTtot*sum(FT_j{j}.^2);
+                J4{i}=J4{i}+B(j+1)*W.penalizeFTtot*sum(FT_j{j}.^2)*h{i};
             end
             if Options.penalizeoutoflMtilde1
-                J5{i}=J5{i}+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2);
+                J5{i}=J5{i}+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2)*h{i};
             end
         end
     end
     eq_constr = vertcat(eq_constr{:});
     ineq_constr=vertcat(ineq_constr{:});
     
+    if Options.optInertiaParam
+        inputs_f_coll={inertiaParam_k};
+        inputs_f_coll_map={repmat(inertiaParam,1,N)}
+        inputs_f_coll2={inertiaParam_k};
+        inputs_f_coll_map2={repmat(inertiaParam,1,N)};
+    else
+        inputs_f_coll=[];
+        inputs_f_coll_map=[];
+        inputs_f_coll2=[];
+        inputs_f_coll_map2=[];
+    end
+    outputs_f_coll=[];
+
+    inputs_f_coll=[inputs_f_coll {QsQdots_k,QsQdots_j,QsQdots_totrack_j,...
+        QsQdots_prescribed_j, Qd2dots_j,Qd2dots_prescribed_j, ...
+        forces_prescribed_j}];
+    outputs_f_coll=[outputs_f_coll {eq_constr,J_d}];
+    inputs_f_coll_map=[inputs_f_coll_map ...
+        {QsQdots{i}(:,1:end-1),QsQdots_col{i},...
+        guess.QsQdots{i}(t_col_grid,:)',... %guess.QsQdots is already scaled (this is for QsQdots_totrack_j)
+        QsQdot_prescribed{i}(t_col_grid,:)',... %QsQdot_prescribed is unscaled
+        Qd2dots_col{i},...
+        Qd2dot_prescribed{i}(t_col_grid,:)',forces_prescribed{i}'}];
+
+    outputs_f_coll_map = cell(1, 2); % Preallocate a cell array for two outputs
+    outputs_f_coll2={J1{i},J1b{i},J2{i},J2b{i},J3{i},J4{i},J5{i},out_d{i}};
+    outputs_f_coll_map2=cell(1,8);
+
     if Options.optimizeMuscleProp
         if Options.useRigidTendon
             keyboard;
         else
-            f_coll = Function('f_coll',{FTtilde_k,FTtilde_j,...
-                dFTtilde_j, QsQdots_k,QsQdots_j,...
-                QsQdots_totrack_j,QsQdots_prescribed_j, ...
-                Qd2dots_j,Qd2dots_prescribed_j, forces_prescribed_j, ...
-                lTs_k, lM0_k, fiber_damping_k,tendon_damping_k,Kstiff_k,Ddamp_k,theta0_k},{eq_constr,J_d,...
-                [FT_j{1} FT_j{2} FT_j{3}],...
+            inputs_f_coll=[inputs_f_coll {FTtilde_k,FTtilde_j,...
+                dFTtilde_j, lTs_k, lM0_k}];
+            outputs_f_coll=[outputs_f_coll {[FT_j{1} FT_j{2} FT_j{3}],...
                 [lMtilde_j{1} lMtilde_j{2} lMtilde_j{3}],...
-                [lTtilde_j{1} lTtilde_j{2} lTtilde_j{3}]});
-            
-            f_coll_map = f_coll.map(N,ParallelMode,NThreads);
-    
-            [coll_eq_constr{i}, Jall{i},FT_all{i},...
-                lMtilde_all{i},lTtilde_all{i}] = ...
-                f_coll_map(FTtilde{i}(:,1:end-1),...
+                [lTtilde_j{1} lTtilde_j{2} lTtilde_j{3}]}];
+            inputs_f_coll_map=[inputs_f_coll_map {FTtilde{i}(:,1:end-1),...
                 FTtilde_col{i}, dFTtilde_col{i}, ...
-                QsQdots{i}(:,1:end-1),QsQdots_col{i},...
-                guess.QsQdots{i}(t_col_grid,:)',... %guess.QsQdots is already scaled (this is for QsQdots_totrack_j)
-                QsQdot_prescribed{i}(t_col_grid,:)',... %QsQdot_prescribed is unscaled
-                Qd2dots_col{i},...
-                Qd2dot_prescribed{i}(t_col_grid,:)',forces_prescribed{i}',...
-                repmat(lTs,1,N),repmat(lM0,1,N),repmat(fiber_damping,1,N),...
-                repmat(tendon_damping,1,N),repmat(Kstiff,1,N),repmat(Ddamp,1,N),repmat(theta0,1,N));
+                repmat(lTs,1,N),repmat(lM0,1,N)}];
+
+            inputs_f_coll=[inputs_f_coll {fiber_damping_k}];
+            if Options.optimizefiberdamping
+                inputs_f_coll_map=[inputs_f_coll_map {repmat(fiber_damping,1,N)}];
+            else
+                inputs_f_coll_map=[inputs_f_coll_map {zeros(1,N)}];
+            end
+            inputs_f_coll=[inputs_f_coll {tendon_damping_k}];
+            if Options.optimizetendondamping
+                inputs_f_coll_map=[inputs_f_coll_map {repmat(tendon_damping,1,N)}];  
+            else
+                inputs_f_coll_map=[inputs_f_coll_map {zeros(1,N)}];  
+            end
+            outputs_f_coll_map = [outputs_f_coll_map cell(1, 3)]; % Preallocate a cell array for five outputs
             
             %for debugging
-            f_coll2 = Function('f_coll2',{FTtilde_k,FTtilde_j,...
-                dFTtilde_j, QsQdots_k,QsQdots_j,...
-                QsQdots_totrack_j,QsQdots_prescribed_j, ...
-                Qd2dots_j,Qd2dots_prescribed_j, forces_prescribed_j, ...
-                lTs_k, lM0_k, fiber_damping_k,tendon_damping_k,Kstiff_k,Ddamp_k,theta0_k},{J1{i},J2{i},J3{i},J4{i},J5{i},out_d{i}});
-            f_coll_map2=f_coll2.map(N,ParallelMode,NThreads);
-            [J1all{i},J2all{i},J3all{i},J4all{i},J5all{i},out_dall{i}]=f_coll_map2(FTtilde{i}(:,1:end-1),...
-                FTtilde_col{i}, dFTtilde_col{i}, ...
-                QsQdots{i}(:,1:end-1),QsQdots_col{i},...
-                guess.QsQdots{i}(t_col_grid,:)',... %guess.QsQdots is already scaled (this is for QsQdots_totrack_j)
-                QsQdot_prescribed{i}(t_col_grid,:)',... %QsQdot_prescribed is unscaled
-                Qd2dots_col{i},...
-                Qd2dot_prescribed{i}(t_col_grid,:)',forces_prescribed{i}',...
-                repmat(lTs,1,N),repmat(lM0,1,N),repmat(fiber_damping,1,N),...
-                repmat(tendon_damping,1,N),repmat(Kstiff,1,N),repmat(Ddamp,1,N),repmat(theta0,1,N));
-        end
-    else
-        if Options.optimizePassiveJointEl
-            f_coll = Function('f_coll',{QsQdots_k,QsQdots_j,...
-                QsQdots_totrack_j,QsQdots_prescribed_j, ...
-                Qd2dots_j,Qd2dots_prescribed_j, forces_prescribed_j, ...
-                Kstiff_k,Ddamp_k,theta0_k},{eq_constr,J_d});
-            
-            f_coll_map = f_coll.map(N,ParallelMode,NThreads);
-    
-            [coll_eq_constr{i}, Jall{i}] = ...
-                f_coll_map(QsQdots{i}(:,1:end-1),QsQdots_col{i},...
-                guess.QsQdots{i}(t_col_grid,:)',... %guess.QsQdots is already scaled (this is for QsQdots_totrack_j)
-                QsQdot_prescribed{i}(t_col_grid,:)',... %QsQdot_prescribed is unscaled
-                Qd2dots_col{i},...
-                Qd2dot_prescribed{i}(t_col_grid,:)',forces_prescribed{i}',...
-                repmat(Kstiff,1,N),repmat(Ddamp,1,N),repmat(theta0,1,N));
-            
-            %for debugging
-            f_coll2 = Function('f_coll2',{QsQdots_k,QsQdots_j,...
-                QsQdots_totrack_j,QsQdots_prescribed_j, ...
-                Qd2dots_j,Qd2dots_prescribed_j, forces_prescribed_j, ...
-                Kstiff_k,Ddamp_k,theta0_k},{J1{i},J2{i},J3{i},J4{i},J5{i},out_d{i}});
-            f_coll_map2=f_coll2.map(N,ParallelMode,NThreads);
-            [J1all{i},J2all{i},J3all{i},J4all{i},J5all{i},out_dall{i}]=...
-                f_coll_map2(QsQdots{i}(:,1:end-1),QsQdots_col{i},...
-                guess.QsQdots{i}(t_col_grid,:)',... %guess.QsQdots is already scaled (this is for QsQdots_totrack_j)
-                QsQdot_prescribed{i}(t_col_grid,:)',... %QsQdot_prescribed is unscaled
-                Qd2dots_col{i},...
-                Qd2dot_prescribed{i}(t_col_grid,:)',forces_prescribed{i}',...
-                repmat(Kstiff,1,N),repmat(Ddamp,1,N),repmat(theta0,1,N));
-        else
-            keyboard;
+            inputs_f_coll2=inputs_f_coll;
+            inputs_f_coll_map2=inputs_f_coll_map;
         end
     end
+
+    if Options.optimizePassiveJointEl
+        inputs_f_coll=[inputs_f_coll {Kstiff_k,Ddamp_k,theta0_k}];
+        inputs_f_coll_map=[inputs_f_coll_map {repmat(Kstiff{i},1,N),repmat(Ddamp{i},1,N),repmat(theta0{i},1,N)}];
+        
+        %for debugging
+        inputs_f_coll2=inputs_f_coll;
+        inputs_f_coll_map2=inputs_f_coll_map;
+    end
+
+    f_coll = Function('f_coll',inputs_f_coll,outputs_f_coll);
+    f_coll_map = f_coll.map(N,ParallelMode,NThreads);
+    [outputs_f_coll_map{:}] = f_coll_map(inputs_f_coll_map{:});
+
+
+    f_coll2 = Function('f_coll2',inputs_f_coll2,outputs_f_coll2);
+    f_coll_map2=f_coll2.map(N,ParallelMode,NThreads);
+    [outputs_f_coll_map2{:}] = f_coll_map2(inputs_f_coll_map2{:});
+    
+
+    [J1all{i},J1ball{i},J2all{i},J2ball{i},J3all{i},J4all{i},J5all{i},out_dall{i}] = outputs_f_coll_map2{:};
+    if Options.optimizeMuscleProp
+        if Options.useRigidTendon
+            keyboard;
+        else
+        end
+        [coll_eq_constr{i}, Jall{i}, FT_all{i}, lMtilde_all{i}, lTtilde_all{i}] = outputs_f_coll_map{:};
+    else
+        [coll_eq_constr{i}, Jall{i}] = outputs_f_coll_map{:};
+    end
+
     opti.subject_to(coll_eq_constr{i}==0);
     % Add continuity constraints (next interval starts with end values of 
     % states from previous interval)
@@ -780,6 +820,13 @@ options.ipopt.tol = 1e-4;
 opti.solver('ipopt', options);  
 sol=opti.solve();
 
+if Options.optInertiaParam
+    if opti.stats.success==1
+        sol_val.inertiaParam=sol.value(inertiaParam);
+    else
+        sol_val.inertiaParam=opti.debug.value(inertiaParam);
+    end
+end
 
 if Options.optimizeMuscleProp
     if opti.stats.success==1
@@ -810,29 +857,33 @@ sol_val.scaling=scaling;
 sol_val.ndofs=ndofs;
 
 sol_val.tgrid=tgrid;
-sol_val.t2plot=t_col_grid;
+sol_val.tgrid_col{i}=tgrid{i}(t_col_grid);
+% sol_val.t2plot=t_col_grid;
 sol_val.W=W;
 if Options.optimizeMuscleProp
     sol_val.muscle_names=muscle_name;
 end
 sol_val.stats=opti.stats;
 
-if Options.optimizePassiveJointEl
-    if opti.stats.success
-        sol_val.Kstiff=sol.value(Kstiff);
-        sol_val.Ddamp=sol.value(Ddamp);
-        sol_val.theta0=sol.value(theta0);
-    else 
-        sol_val.Kstiff=opti.debug.value(Kstiff);
-        sol_val.Ddamp=opti.debug.value(Ddamp);
-        sol_val.theta0=opti.debug.value(theta0);
+for i=1:size(Kstiff,2)
+    if Options.optimizePassiveJointEl
+        if opti.stats.success
+            sol_val.Kstiff{i}=sol.value(Kstiff{i});
+            sol_val.Ddamp{i}=sol.value(Ddamp{i});
+            sol_val.theta0{i}=sol.value(theta0{i});
+        else 
+            sol_val.Kstiff{i}=opti.debug.value(Kstiff{i});
+            sol_val.Ddamp{i}=opti.debug.value(Ddamp{i});
+            sol_val.theta0{i}=opti.debug.value(theta0{i});
+        end
     end
 end
 
 if opti.stats.success
+    
     for i=1:size(QsQdots,2)
         sol_val.tgrid{i}=tgrid{i};
-        % sol_val.t2plot{i}=t_col_grid;
+        sol_val.t2plot{i}=t_col_grid;
         sol_val.QsQdots{i}=sol.value(QsQdots{i});
         sol_val.QsQdots_col{i}=sol.value(QsQdots_col{i});
         sol_val.Qd2dot_col{i}=sol.value(Qd2dots_col{i});
@@ -927,6 +978,7 @@ else
 
 end
 sol_val.guess=guess;
+sol_val.bounds=bounds;
 sol_val.QsQdot_prescribed=QsQdot_prescribed;
 sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 sol_val.force_prescribed=forces_prescribed;
@@ -967,13 +1019,15 @@ for i=1:length(J1)
     figure
     plot(opti.value(J1all{i}));
     hold all
+    plot(opti.value(J1ball{i}));
     plot(opti.value(J2all{i}));
+    plot(opti.value(J2ball{i}));
     plot(opti.value(J3all{i}));
     plot(opti.value(J4all{i}));
     plot(opti.value(J5all{i}));
-    legend({'J1','J2','J3','J4','J5'});
+    legend({'J1','J1b','J2','J2b','J3','J4','J5'});
 end
-if Options.optimizelM0
+if Options.optimizeMuscleProp&Options.optimizelM0
     opti.value(J_lM0)
 end
 if Options.optimizePassiveJointEl
@@ -981,8 +1035,8 @@ if Options.optimizePassiveJointEl
 end
 
 %% write output kinematics
-q.data(:,1)=sol_val.tgrid{1}(sol_val.t2plot);
-q.data(:,2:8)=sol_val.QsQdot_prescribed{1}(sol_val.t2plot,1:2:end);
+q.data(:,1)=sol_val.tgrid{1}(sol_val.t2plot{1});
+q.data(:,2:8)=sol_val.QsQdot_prescribed{1}(sol_val.t2plot{1},1:2:end);
 q.data(:,9:15)=sol_val.QsQdots_col_unsc{1}(1:2:end,:)';
 q.data(:,[2:4 8:end])=q.data(:,[2:4 8:end])*180/pi;
 q.labels={'time', 'sacrum_pitch','sacrum_roll','sacrum_yaw','sacrum_x','sacrum_y','sacrum_z','sacroiliac_flx', ...
@@ -992,14 +1046,18 @@ write_motionFile(q,'testoutmot.mot');
 %% recompute constraint values
 for i=1:length(sol_val.QsQdot_prescribed)
     if ~isempty(sol_val.QsQdot_prescribed{i})
-        all_QsQdot_opt{i}(:,1:14)=sol_val.QsQdot_prescribed{i}(sol_val.t2plot,:);
+        all_QsQdot_opt{i}(:,1:14)=sol_val.QsQdot_prescribed{i}(sol_val.t2plot{i},:);
         all_QsQdot_opt{i}(:,15:28)=sol_val.QsQdots_col_unsc{i}';
 
-        all_Qd2dot_opt{i}(:,1:7)=sol_val.Qd2dot_prescribed{i}(sol_val.t2plot,:);
+        all_Qd2dot_opt{i}(:,1:7)=sol_val.Qd2dot_prescribed{i}(sol_val.t2plot{i},:);
         all_Qd2dot_opt{i}(:,8:14)=sol_val.Qd2dot_col_unsc{i}';
 
         for k=1:size(all_Qd2dot_opt{i},1)
-            out_opt{i}(k,:)=full(F([all_QsQdot_opt{i}(k,:)';all_Qd2dot_opt{i}(k,:)';forces_prescribed{i}(k,:)']));
+            if Options.optInertiaParam
+                out_opt{i}(k,:)=full(F([all_QsQdot_opt{i}(k,:)';all_Qd2dot_opt{i}(k,:)';forces_prescribed{i}(k,:)';sol_val.inertiaParam]));
+            else
+                out_opt{i}(k,:)=full(F([all_QsQdot_opt{i}(k,:)';all_Qd2dot_opt{i}(k,:)';forces_prescribed{i}(k,:)']));
+            end
         end
     end
 end
@@ -1017,7 +1075,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:1));
         if Options.optimizePassiveJointEl
-            PassiveM_hip_flx_opt=-sol_val.Kstiff(1)*(sol_val.QsQdots_col_unsc{i}(1,:)'-sol_val.theta0(I))-sol_val.Ddamp(1)*sol_val.QsQdots_col_unsc{i}(2,:)';
+            PassiveM_hip_flx_opt=-sol_val.Kstiff{i}(1)*(sol_val.QsQdots_col_unsc{i}(1,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(1)*sol_val.QsQdots_col_unsc{i}(2,:)';
         else
             PassiveM_hip_flx_opt=zeros(d*N,1);   
         end
@@ -1036,7 +1094,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:2));
         if Options.optimizePassiveJointEl
-            PassiveM_hip_add_opt=-sol_val.Kstiff(1)*(sol_val.QsQdots_col_unsc{i}(3,:)'-sol_val.theta0(I))-sol_val.Ddamp(1)*sol_val.QsQdots_col_unsc{i}(4,:)';
+            PassiveM_hip_add_opt=-sol_val.Kstiff{i}(1)*(sol_val.QsQdots_col_unsc{i}(3,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(1)*sol_val.QsQdots_col_unsc{i}(4,:)';
         else
             PassiveM_hip_add_opt=zeros(d*N,1);
         end
@@ -1054,7 +1112,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:3));
         if Options.optimizePassiveJointEl
-            PassiveM_hip_int_opt=-sol_val.Kstiff(1)*(sol_val.QsQdots_col_unsc{i}(5,:)'-sol_val.theta0(I))-sol_val.Ddamp(1)*sol_val.QsQdots_col_unsc{i}(6,:)';
+            PassiveM_hip_int_opt=-sol_val.Kstiff{i}(1)*(sol_val.QsQdots_col_unsc{i}(5,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(1)*sol_val.QsQdots_col_unsc{i}(6,:)';
         else
             PassiveM_hip_int_opt=zeros(d*N,1);
         end
@@ -1073,7 +1131,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:4));
         if Options.optimizePassiveJointEl
-            PassiveM_knee_flx_opt=-sol_val.Kstiff(2)*(sol_val.QsQdots_col_unsc{i}(7,:)'-sol_val.theta0(I))-sol_val.Ddamp(2)*sol_val.QsQdots_col_unsc{i}(8,:)';
+            PassiveM_knee_flx_opt=-sol_val.Kstiff{i}(2)*(sol_val.QsQdots_col_unsc{i}(7,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(2)*sol_val.QsQdots_col_unsc{i}(8,:)';
         else
             PassiveM_knee_flx_opt=zeros(d*N,1);
         end
@@ -1092,7 +1150,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:5));
         if Options.optimizePassiveJointEl
-            PassiveM_ankle_flx_opt=-sol_val.Kstiff(3)*(sol_val.QsQdots_col_unsc{i}(9,:)'-sol_val.theta0(I))-sol_val.Ddamp(3)*sol_val.QsQdots_col_unsc{i}(10,:)';
+            PassiveM_ankle_flx_opt=-sol_val.Kstiff{i}(3)*(sol_val.QsQdots_col_unsc{i}(9,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(3)*sol_val.QsQdots_col_unsc{i}(10,:)';
         else
             PassiveM_ankle_flx_opt=zeros(d*N,1);       
         end
@@ -1110,7 +1168,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:6));
         if Options.optimizePassiveJointEl
-            PassiveM_ankle_add_opt=-sol_val.Kstiff(3)*(sol_val.QsQdots_col_unsc{i}(11,:)'-sol_val.theta0(I))-sol_val.Ddamp(3)*sol_val.QsQdots_col_unsc{i}(12,:)';
+            PassiveM_ankle_add_opt=-sol_val.Kstiff{i}(3)*(sol_val.QsQdots_col_unsc{i}(11,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(3)*sol_val.QsQdots_col_unsc{i}(12,:)';
         else
             PassiveM_ankle_add_opt=zeros(d*N,1);  
         end
@@ -1128,7 +1186,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         end
         I=sum(Options.dofs_to_track(1:7));
         if Options.optimizePassiveJointEl
-            PassiveM_ankle_int_opt=-sol_val.Kstiff(3)*(sol_val.QsQdots_col_unsc{i}(13,:)'-sol_val.theta0(I))-sol_val.Ddamp(3)*sol_val.QsQdots_col_unsc(14,:)';
+            PassiveM_ankle_int_opt=-sol_val.Kstiff{i}(3)*(sol_val.QsQdots_col_unsc{i}(13,:)'-sol_val.theta0{i}(I))-sol_val.Ddamp{i}(3)*sol_val.QsQdots_col_unsc(14,:)';
         else
             PassiveM_ankle_int_opt=zeros(d*N,1);
         end
@@ -1138,13 +1196,14 @@ for i=1:length(sol_val.QsQdots_col_unsc)
 end
 
 %dynamic constraints
-for i=1:length(sol_val.FTtilde_unsc)
-    if ~isempty(sol_val.FTtilde_unsc{i})
+for i=1:length(sol_val.QsQdots_unsc)
+    if ~isempty(sol_val.QsQdots_unsc{i})
         for k=1:N
             for j=1:d
-                FTtildep_opt_nsc{i}(k,:) = [sol_val.FTtilde_unsc{i}(:,(k-1)*(d+1)+1:k*(d+1))]*C(:,j+1); %FTtilde_sol already in the original scale
-                eq_constr_dyn_FTtilde{i}(k,:)=(h{i}*sol_val.dFTtilde_unsc{i}(:,(k-1)*d+j)-FTtildep_opt_nsc{i}(k,:)')/scaling.dFTtilde;
-
+                if Options.optimizeMuscleProp
+                    FTtildep_opt_nsc{i}(k,:) = [sol_val.FTtilde_unsc{i}(:,(k-1)*(d+1)+1:k*(d+1))]*C(:,j+1); %FTtilde_sol already in the original scale
+                    eq_constr_dyn_FTtilde{i}(k,:)=(h{i}*sol_val.dFTtilde_unsc{i}(:,(k-1)*d+j)-FTtildep_opt_nsc{i}(k,:)')/scaling.dFTtilde;
+                end
                 Qs_opt_nsc{i}(k,:) = [sol_val.QsQdots_unsc{i}(1:2:end,k) sol_val.QsQdots_col_unsc{i}(1:2:end,(k-1)*d+1:(k-1)*d+d)]*C(:,j+1); %QsQdots_sol already in the original scale
                 eq_constr_dyn_Qsopt{i}(k,:)=(h{i}*sol_val.QsQdots_col_unsc{i}(2:2:end,(k-1)*d+j)-Qs_opt_nsc{i}(k,:)')/scaling.QsQdots(2);
 
@@ -1156,45 +1215,46 @@ for i=1:length(sol_val.FTtilde_unsc)
 end
 
 
-function  expdata=LoadData(N,d,tau_root,trials,main_folder)
+function  expdata=LoadData(N,d,tau_root,main_folder)
     current_folder=pwd;
-    for triali=1:length(trials)
+    kinfiles=dir([main_folder '/kinematics/' '/*.mot']);
+    forcefiles=dir([main_folder '/perturbation/' '/*.mot']);
+    for i=1:length(kinfiles);
+        kinfilename=kinfiles(i).name; 
+        kindata=importdata([kinfiles(i).folder '/' kinfiles(i).name]);
         if strcmp(main_folder,'DataSeptember')
-            kinfiles=dir([main_folder '/kinematics/' '*.mot']);
-            forcefiles=dir([main_folder '/perturbation/' '*.mot']);
-        elseif strcmp(main_folder,'DataMay')
-            kinfiles=dir([main_folder '/kinematics/' trials{triali} '/*.mot']);
-            forcefiles=dir([main_folder '/motion&force/' trials{triali} '/*.mot']);
+            kindata.data(:,1)=kindata.data(:,1);
         end
-        for i=1:length(kinfiles);
-           kinfilename=kinfiles(i).name; 
-           kindata=importdata([kinfiles(i).folder '/' kinfiles(i).name]);
-           kindata=ProcessKinematics(kindata);
-           C=strrep(kinfilename,'perturb','');
-           sufix=strrep(C,'.mot','');
-            
-           if strcmp(main_folder,'DataSeptember')
+       kindata=ProcessKinematics(kindata);
+       C=strrep(kinfilename,'perturb','');
+       sufix=strrep(C,'.mot','');
+        
+       if strcmp(main_folder,'DataSeptember')
             trial_name=[strrep(kinfilename,'.mot','')];
-           else
-            trial_name=[trials{triali} '_' strrep(kinfilename,'.mot','')];
-           end
-           %parameterize with splines
-           t=kindata.data(1,1):0.0002:kindata.data(end,1);
-           expdata.(trial_name).kinematics(:,1)=t;
-           expdata.(trial_name).kinematics_v(:,1)=t;
-           expdata.(trial_name).kinematics_a(:,1)=t;
-           [B,A]=butter(3,100/(5000/2));
-           for j=2:size(kindata.data,2)
-                intdata=interp1(kindata.data(:,1),kindata.data(:,j),t,'spline');
-                smoothed_kin=smooth(t,intdata,0.5,'rloess');
-                smoothed_filt_kin=filtfilt(B,A,smoothed_kin);
+       elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')
+            trial_name=[strrep(strrep(kinfilename,'.mot',''),'.','_')];
+            trial_name=[strrep(trial_name,'-','m')];
+       else
+        keyboard; %need to update
+        trial_name=[trials{triali} '_' strrep(kinfilename,'.mot','')];
+       end
+       %parameterize with splines
+       t=kindata.data(1,1):0.0002:kindata.data(end,1);
+       expdata.(trial_name).kinematics(:,1)=t;
+       expdata.(trial_name).kinematics_v(:,1)=t;
+       expdata.(trial_name).kinematics_a(:,1)=t;
+       [B,A]=butter(3,100/(5000/2));
+       for j=2:size(kindata.data,2)
+            intdata=interp1(kindata.data(:,1),kindata.data(:,j),t,'spline');
+            smoothed_kin=smooth(t,intdata,0.5,'rloess');
+            smoothed_filt_kin=filtfilt(B,A,smoothed_kin);
 
-                kindata_spline(j-1)=spline(t,smoothed_filt_kin);
-                expdata.(trial_name).kinematics(:,j)=ppval(kindata_spline(j-1),t);
-                expdata.(trial_name).kinematics_v(:,j)=ppval(fnder(kindata_spline(j-1),1),t);
-                expdata.(trial_name).kinematics_a(:,j)=ppval(fnder(kindata_spline(j-1),2),t);
-           end
-           expdata.(trial_name).kinematics_labels=kindata.colheaders;
+            kindata_spline(j-1)=spline(t,smoothed_filt_kin);
+            expdata.(trial_name).kinematics(:,j)=ppval(kindata_spline(j-1),t);
+            expdata.(trial_name).kinematics_v(:,j)=ppval(fnder(kindata_spline(j-1),1),t);
+            expdata.(trial_name).kinematics_a(:,j)=ppval(fnder(kindata_spline(j-1),2),t);
+       end
+       expdata.(trial_name).kinematics_labels=kindata.colheaders;
 %            forcefilename2match=['high_posture' sufix '_ForwardResp_at_'];
 %            found=false;
 %            j=1;
@@ -1205,38 +1265,35 @@ function  expdata=LoadData(N,d,tau_root,trials,main_folder)
 %                 j=j+1;
 %                end
 %            end
-           if strcmp(forcefiles(i).name,kinfiles(i).name)
-           else
-               if strcmp(main_folder,'DataSeptember')
-               else
-                keyboard;
-               end
-           end
-           forcedata=importdata([forcefiles(i).folder '/' forcefiles(i).name]);
-           expdata.(trial_name).forces=forcedata.data;
-           expdata.(trial_name).forces_labels=forcedata.colheaders;
+       if contains(main_folder,'November')||contains(main_folder,'December')
+            forcedata=importdata([forcefiles(i).folder '/' strrep(kinfiles(i).name,'kinematics','motor')]);
+       elseif contains(main_folder,'September')
+            forcedata=importdata([forcefiles(i).folder '/' strrep(kinfiles(i).name,'_kin','')]);
+       else
+            forcedata=importdata([forcefiles(i).folder '/' forcefiles(i).name]);
+       end
+       expdata.(trial_name).forces=forcedata.data;
+       expdata.(trial_name).forces_labels=forcedata.colheaders;
 
-           t0=max(forcedata.data(1,1),expdata.(trial_name).kinematics(1,1));
-           tf=min(forcedata.data(end,1),expdata.(trial_name).kinematics(end,1));
-           tgrid(1:(d+1):(N+1)*(d+1))=t0:((tf-t0)/N):tf;
-           deltat=tgrid(d+1+1)-tgrid(1);
-           tgrid(2:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(2)*deltat;
-           tgrid(3:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(3)*deltat;
-           tgrid(4:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(4)*deltat;
-           expdata.(trial_name).tgrid=tgrid;
-           h=(tgrid(end)-tgrid(1))/N;
-           expdata.(trial_name).h=h;
-           expdata.(trial_name).q=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics,tgrid);
-           expdata.(trial_name).q(:,[2:4 8:end])=expdata.(trial_name).q(:,[2:4 8:end])*pi/180;
-           expdata.(trial_name).qdot=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics_v,tgrid);
-           expdata.(trial_name).qdot(:,[2:4 8:end])=expdata.(trial_name).qdot(:,[2:4 8:end])*pi/180;
-           expdata.(trial_name).qd2dot=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics_a,tgrid);
-           expdata.(trial_name).qd2dot(:,[2:4 8:end])=expdata.(trial_name).qd2dot(:,[2:4 8:end])*pi/180;
-           expdata.(trial_name).f=interp1(forcedata.data(:,1),forcedata.data,tgrid);
-        end
-
-
+       t0=max(forcedata.data(1,1),expdata.(trial_name).kinematics(1,1));
+       tf=min(forcedata.data(end,1),expdata.(trial_name).kinematics(end,1));
+       tgrid(1:(d+1):(N+1)*(d+1))=t0:((tf-t0)/N):tf;
+       deltat=tgrid(d+1+1)-tgrid(1);
+       tgrid(2:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(2)*deltat;
+       tgrid(3:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(3)*deltat;
+       tgrid(4:(d+1):N*(d+1))=tgrid(1:(d+1):N*(d+1))+tau_root(4)*deltat;
+       expdata.(trial_name).tgrid=tgrid;
+       h=(tgrid(end)-tgrid(1))/N;
+       expdata.(trial_name).h=h;
+       expdata.(trial_name).q=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics,tgrid);
+       expdata.(trial_name).q(:,[2:4 8:end])=expdata.(trial_name).q(:,[2:4 8:end])*pi/180;
+       expdata.(trial_name).qdot=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics_v,tgrid);
+       expdata.(trial_name).qdot(:,[2:4 8:end])=expdata.(trial_name).qdot(:,[2:4 8:end])*pi/180;
+       expdata.(trial_name).qd2dot=interp1(expdata.(trial_name).kinematics(:,1),expdata.(trial_name).kinematics_a,tgrid);
+       expdata.(trial_name).qd2dot(:,[2:4 8:end])=expdata.(trial_name).qd2dot(:,[2:4 8:end])*pi/180;
+       expdata.(trial_name).f=interp1(forcedata.data(:,1),forcedata.data,tgrid);
     end
+
     
     
 end
