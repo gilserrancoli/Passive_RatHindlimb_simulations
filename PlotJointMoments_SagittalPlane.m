@@ -1,7 +1,8 @@
-function PlotJointMoments(sol_val,i,Options)
+function PlotJointMoments_SagittalPlane(sol_val,i,Options)
 
-for j=8:size(sol_val.out_opt{i},2)
-    subplot(4,2,j-7)
+ii=1;
+for j=[8 11 12]
+    subplot(3,1,ii)
     plot(sol_val.tgrid_col{i}, sol_val.out_opt{i}(:,j),'LineWidth',2); % total moment
     hold all;
     if Options.optimizeMuscleProp
@@ -25,19 +26,19 @@ for j=8:size(sol_val.out_opt{i},2)
     if Options.optimizePassiveJointEl
         switch j %Joint passive moment
             case 8
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_flx_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_flx_opt{i});
             case 9
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_add_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_add_opt{i});
             case 10
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_int_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_hip_int_opt{i});
             case 11
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_knee_flx_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_knee_flx_opt{i});
             case 12
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_flx_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_flx_opt{i});
             case 13
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_add_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_add_opt{i});
             case 14
-                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_int_opt);
+                plot(sol_val.tgrid_col{i},sol_val.PassiveM_ankle_int_opt{i});
         end
     end
     if isfield(sol_val,'res_col_unsc')
@@ -45,6 +46,7 @@ for j=8:size(sol_val.out_opt{i},2)
     end
     title(sol_val.name_dofs{j-7});
     ylabel('Moment [Nm]');
+    ii=ii+1;
 end
 if Options.optimizeMuscleProp&~Options.optimizePassiveJointEl&isfield(sol_val,'res_col_unsc')
     legend('total moment','sum muscle moments','residual');

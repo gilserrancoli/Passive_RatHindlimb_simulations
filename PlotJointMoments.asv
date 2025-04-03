@@ -50,14 +50,8 @@ if Options.optimizeMuscleProp&~Options.optimizePassiveJointEl&isfield(sol_val,'r
     legend('total moment','sum muscle moments','residual');
 elseif  ~Options.optimizeMuscleProp&Options.optimizePassiveJointEl&isfield(sol_val,'res_col_unsc')
     legend('total moment','sum joint passive moments','residual');
-elseif Options.optimizeMuscleProp&Options.optimizePassiveJointEl&isfield(sol_val,'res_col_unsc')
+elseif Options.optimizeMuscleProp&Options.optimizePassiveJointEl
     legend('total moment','sum muscle moments','sum joint passive moments','residual');
-elseif Options.optimizeMuscleProp&~Options.optimizePassiveJointEl&~isfield(sol_val,'res_col_unsc')
-    legend('total moment','sum muscle moments');
-elseif  ~Options.optimizeMuscleProp&Options.optimizePassiveJointEl&~isfield(sol_val,'res_col_unsc')
-    legend('total moment','sum joint passive moments');
-elseif Options.optimizeMuscleProp&Options.optimizePassiveJointEl&~isfield(sol_val,'res_col_unsc')
-    legend('total moment','sum muscle moments','sum joint passive moments');
 end
 
     

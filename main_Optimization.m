@@ -17,15 +17,16 @@ Options.penalizeFTtot=0;
 Options.penalizeoutoflMtilde1=0;
 Options.optInertiaParam=1;
 
-Options.optimizeMuscleProp=0;
+Options.optimizeMuscleProp=1;
 Options.optimizePassiveJointEl=1;
+main_folder='DataMarch2025\achillescut_ForwardOnly\';
 
 %% 
 N=20;
 d=3;
 [tau_root,C,D,B] = CollocationScheme(d,method);
 
-main_folder='DataDecember';
+
 % trials={'h8'}; main_folder='DataMay';
 % trials='all';main_folder='DataSeptember';
 % trials={'data6'};
@@ -142,8 +143,9 @@ if Options.optimizeMuscleProp
     addpath(genpath(pathpolynomial));
     load([pathpolynomial,'/muscle_spanning_joint_INFO_subject.mat']);
     load([pathpolynomial,'/MuscleInfo_subject.mat']);
-    pathmusclefunctions=[pwd,'/Model/MuscleModel'];
-    addpath(genpath(pathmusclefunctions));
+    pathmusclefunctions=[pwd,'\MuscleModel'];
+    rmpath(genpath(pathmusclefunctions));
+    addpath(genpath(pathmusclefunctions),'-begin');
     [~,mai] = MomentArmIndices_3D(muscle_names,...
         muscle_spanning_joint_INFO);
     
@@ -693,7 +695,7 @@ for i=1:length(nametrials)
     
     if Options.optInertiaParam
         inputs_f_coll={inertiaParam_k};
-        inputs_f_coll_map={repmat(inertiaParam,1,N)}
+        inputs_f_coll_map={repmat(inertiaParam,1,N)};
         inputs_f_coll2={inertiaParam_k};
         inputs_f_coll_map2={repmat(inertiaParam,1,N)};
     else
@@ -857,7 +859,6 @@ sol_val.scaling=scaling;
 sol_val.ndofs=ndofs;
 
 sol_val.tgrid=tgrid;
-sol_val.tgrid_col{i}=tgrid{i}(t_col_grid);
 % sol_val.t2plot=t_col_grid;
 sol_val.W=W;
 if Options.optimizeMuscleProp
@@ -892,6 +893,7 @@ if opti.stats.success
             sol_val.QsQdots_col_unsc{i}=sol_val.QsQdots_col{i}.*scaling.QsQdots';
             sol_val.Qd2dot_col_unsc{i}=sol_val.Qd2dot_col{i}*scaling.qd2dot;
         end
+        sol_val.tgrid_col{i}=tgrid{i}(t_col_grid);
     end
     
     if Options.optimizeMuscleProp
@@ -936,6 +938,7 @@ else
             sol_val.QsQdots_col_unsc{i}=sol_val.QsQdots_col{i}.*scaling.QsQdots';
             sol_val.Qd2dot_col_unsc{i}=sol_val.Qd2dot_col{i}*scaling.qd2dot;
         end
+        sol_val.tgrid_col{i}=tgrid{i}(t_col_grid);
     end
     if Options.optimizeMuscleProp
         if Options.useRigidTendon==1
@@ -982,6 +985,9 @@ sol_val.bounds=bounds;
 sol_val.QsQdot_prescribed=QsQdot_prescribed;
 sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 sol_val.force_prescribed=forces_prescribed;
+sol_val.name_dofs=name_dofs;
+sol_val.nametrials=nametrials;
+sol_val.MTparam=MTparam;
 
 if Options.optimizeMuscleProp
     % Recompute lMT
@@ -1061,6 +1067,8 @@ for i=1:length(sol_val.QsQdot_prescribed)
         end
     end
 end
+sol_val.out_opt=out_opt;
+
 %Muscle force sharing
 %moment equilibrium
 for i=1:length(sol_val.QsQdots_col_unsc)
@@ -1079,7 +1087,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_hip_flx_opt=zeros(d*N,1);   
         end
-        sol_val.PassiveM_hip_flx_opt=PassiveM_hip_flx_opt;
+        sol_val.PassiveM_hip_flx_opt{i}=PassiveM_hip_flx_opt;
         eq_constr_opt{i}(:,1)=(out_opt{i}(:,8)-sum(T_hip_flx_opt,2)-PassiveM_hip_flx_opt)/scaling.T;
 
     end
@@ -1098,7 +1106,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_hip_add_opt=zeros(d*N,1);
         end
-        sol_val.PassiveM_hip_add_opt=PassiveM_hip_add_opt;
+        sol_val.PassiveM_hip_add_opt{i}=PassiveM_hip_add_opt;
         eq_constr_opt{i}(:,2)=(out_opt{i}(:,9)-sum(T_hip_add_opt,2)-PassiveM_hip_add_opt)/scaling.T;
     end
 
@@ -1116,7 +1124,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_hip_int_opt=zeros(d*N,1);
         end
-        sol_val.PassiveM_hip_int_opt=PassiveM_hip_int_opt;
+        sol_val.PassiveM_hip_int_opt{i}=PassiveM_hip_int_opt;
         eq_constr_opt{i}(:,3)=(out_opt{i}(:,10)-sum(T_hip_int_opt,2)-PassiveM_hip_int_opt)/scaling.T;
 
     end
@@ -1135,7 +1143,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_knee_flx_opt=zeros(d*N,1);
         end
-        sol_val.PassiveM_knee_flx_opt=PassiveM_knee_flx_opt;
+        sol_val.PassiveM_knee_flx_opt{i}=PassiveM_knee_flx_opt;
         eq_constr_opt{i}(:,4)=(out_opt{i}(:,11)-sum(T_knee_flx_opt,2)-PassiveM_knee_flx_opt)/scaling.T;
 
     end
@@ -1154,7 +1162,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_ankle_flx_opt=zeros(d*N,1);       
         end
-        sol_val.T_ankle_flx_opt=T_ankle_flx_opt;
+        sol_val.PassiveM_ankle_flx_opt{i}=PassiveM_ankle_flx_opt;
         eq_constr_opt{i}(:,5)=(out_opt{i}(:,12)-sum(T_ankle_flx_opt,2)-PassiveM_ankle_flx_opt)/scaling.T;
     end
 
@@ -1172,7 +1180,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_ankle_add_opt=zeros(d*N,1);  
         end
-        sol_val.PassiveM_ankle_add_opt=PassiveM_ankle_add_opt;
+        sol_val.PassiveM_ankle_add_opt{i}=PassiveM_ankle_add_opt;
         eq_constr_opt{i}(:,6)=(out_opt{i}(:,13)-sum(T_ankle_add_opt,2)-PassiveM_ankle_add_opt)/scaling.T;
     end
 
@@ -1190,7 +1198,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         else
             PassiveM_ankle_int_opt=zeros(d*N,1);
         end
-        sol_val.T_ankle_int_opt=T_ankle_int_opt;
+        sol_val.PassiveM_ankle_int_opt{i}=PassiveM_ankle_int_opt;
         eq_constr_opt{i}(:,7)=(out_opt{i}(:,14)-sum(T_ankle_int_opt,2)-PassiveM_ankle_int_opt)/scaling.T;
     end
 end
