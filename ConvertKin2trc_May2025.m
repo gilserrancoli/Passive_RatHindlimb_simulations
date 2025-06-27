@@ -7,7 +7,7 @@ markers_OpenSim={'pelvis_top','hip','pelvis_bottom','knee','ankle','mtp','toe','
 main_folder=pwd;
 addpath(main_folder);
 
-cd('DataMarch2025/achillescut_BackwardOnly/kinematics');
+cd('DataMay2025/baseline_ForwardOnly/kinematics');
 
 filenames=dir('*.csv');
 for j=1:length(filenames)

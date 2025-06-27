@@ -13,7 +13,7 @@ for i=1:length(sol_val.QsQdots_unsc)
             plot(t(sol_val.t2plot{i}), sol_val.guess.QsQdots{i}(sol_val.t2plot{i},(j-1)*2+1)*sol_val.scaling.q*180/pi,'LineWidth',2);
             hold all;
             % plot(t(sol_val.t2plot{i}), sol_val.QsQdots_col_unsc{i}((j-1)*2+1,:)*180/pi,'LineWidth',2);
-            plot(t(1:4:end-1), sol_val.QsQdots_unsc{i}((j-1)*2+1,1:end-1)*180/pi,'LineWidth',2);
+            plot(t(sol_val.t2plot{i}), sol_val.QsQdots_col_unsc{i}((j-1)*2+1,:)*180/pi,'LineWidth',2);
             title(name_dofs{j});
             ylabel('[º]')
             xlabel('time [s]')
@@ -27,7 +27,7 @@ for i=1:length(sol_val.QsQdots_unsc)
             plot(t(sol_val.t2plot{i}), sol_val.guess.QsQdots{i}(sol_val.t2plot{i},(j-1)*2+2)*sol_val.scaling.qdot,'LineWidth',2);
             hold all;
             % plot(t(sol_val.t2plot{i}), sol_val.QsQdots_col_unsc{i}((j-1)*2+2,:),'LineWidth',2);
-            plot(t(1:4:end-1), sol_val.QsQdots_unsc{i}((j-1)*2+2,1:end-1),'LineWidth',2);
+            plot(t(sol_val.t2plot{i}), sol_val.QsQdots_col_unsc{i}((j-1)*2+2,:),'LineWidth',2);
 
             title(name_dofs{j});
             ylabel('[rad/s]')

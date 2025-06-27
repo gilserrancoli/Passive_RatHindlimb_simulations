@@ -2,7 +2,7 @@ filepath=fileparts(matlab.desktop.editor.getActiveFilename);
 cd(filepath);
 
 colheaders={'time','FT_vx','FT_vy','FT_vz','FT_px','FT_py','FT_pz','FT_tx','FT_ty','FT_tz'};
-cd('DataMarch2025/achillescut_BackwardOnly/perturbation');
+cd('DataMay2025/baseline_ForwardOnly/perturbation');
 
 filenames=dir('*.csv');
 for j=1:length(filenames)
