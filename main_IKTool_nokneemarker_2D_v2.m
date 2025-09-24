@@ -4,8 +4,8 @@ close all;
 
 filepath=fileparts(matlab.desktop.editor.getActiveFilename);
 cd(filepath);
-prefix='achillescut_ForwardOnly';
-main_folder='DataMay2025';
+prefix='baseline';
+main_folder='Datarat22\';
 in_folder=[filepath '\' main_folder '\' prefix '\kinematics'];
 in_folder_nokneemarker=[filepath '\' main_folder '\' prefix '\kinematics'];
 in_folder_perturbation=[filepath '\' main_folder '\' prefix '\perturbation'];
@@ -16,6 +16,10 @@ if contains(in_folder,'DataMay2025') %rat 21
     load('MeanPelvisData_May2025.mat');
     lfemur=38; %mm
     ltibia=42; %mm
+elseif contains(in_folder,'rat22') %rat 22
+    load('MeanPelvisData_Rat22.mat');
+    lfemur=36; %mm
+    ltibia=43; %mm
 elseif contains(in_folder,'rat23')
     load('MeanPelvisData_Rat23.mat');
     lfemur=36; %mm
@@ -39,19 +43,23 @@ for j=1:length(movS)
     cd(in_folder_nokneemarker);
 
     strpos=strfind(movS(j).name,'pos');
-    if movS(j).name(17)=='-'
-        pert=movS(j).name(17:19);
+    if movS(j).name(strpos+3)=='-'
+        pert=movS(j).name(strpos+3:strpos+5);
     else
-        pert=movS(j).name(17:18);
+        pert=movS(j).name(strpos+3:strpos+4);
     end
     found=false;
     p=1;
-    while (p<=length(mdata_bypert))&&(~found)
-        found=str2num(pert)==mdata_bypert(p).perts;
-        if found
-            continue;
+    try
+        while (p<=length(mdata_bypert))&&(~found)
+            found=str2num(pert)==mdata_bypert(p).perts;
+            if found
+                continue;
+            end
+            p=p+1;
         end
-        p=p+1;
+    catch
+        keyboard;
     end
     % in_mot_data=importdata([strrep(movS(j).name,'.trc','.mot')]);
     q.labels={'time','sacrum_pitch','sacrum_roll','sacrum_yaw','sacrum_x','sacrum_y','sacrum_z','sacroiliac_flx','hip_flx','hip_add','hip_int','knee_flx','ankle_flx','ankle_add','ankle_int'};
@@ -430,45 +438,26 @@ end
 
 function [R_spine_ground, R_pelvis, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip,in_folder)
 
-if contains(in_folder,'May2025')
     x_pelvis=pos_pelvis_top-pos_pelvis_bottom;
     x_pelvis=x_pelvis./sqrt(sum(x_pelvis.^2,2));
 
-    v1=pos_pelvis_top-pos_pelvis_bottom;
-    v2=pos_hip-pos_pelvis_bottom;
-    z_pelvis_aux=cross(v1,v2);
-    z_pelvis_aux=z_pelvis_aux./sqrt(sum(z_pelvis_aux.^2,2));
+    vert_ground=[0 0 1];
 
-    y_pelvis=cross(z_pelvis_aux,x_pelvis);
-    y_pelvis=y_pelvis./sqrt(sum(y_pelvis.^2,2));
-    
-    z_pelvis=cross(x_pelvis,y_pelvis);
-    z_pelvis=z_pelvis./sqrt(sum(z_pelvis.^2,2));
-
-else
-
-    x_pelvis=pos_pelvis_top-pos_pelvis_bottom;
-    x_pelvis=x_pelvis./sqrt(sum(x_pelvis.^2,2));
-    
-    r_hip_pelvistop=pos_pelvis_top-pos_hip;
-    r_hip_pelvisbottom=pos_pelvis_bottom-pos_hip;
-    y_pelvis_aux=cross(r_hip_pelvistop,r_hip_pelvisbottom);
-    y_pelvis_aux=y_pelvis_aux./sqrt(sum(y_pelvis_aux.^2,2));
-    
-    z_pelvis=cross(x_pelvis,y_pelvis_aux);
+    z_pelvis=cross(x_pelvis,repmat(vert_ground,size(x_pelvis,1),1));
     z_pelvis=z_pelvis./sqrt(sum(z_pelvis.^2,2));
     
     y_pelvis=cross(z_pelvis,x_pelvis);
-
-end
-
+    y_pelvis=y_pelvis./sqrt(sum(y_pelvis.^2,2));
+    
 R_pelvis=[x_pelvis(1,:)' y_pelvis(1,:)' z_pelvis(1,:)'];
-
 
 R_sacroiliac=eul2rotm([3.7*pi/180,0,0],'ZXY');
 if contains(in_folder,'May2025')
     pos_hip_in_pelvis_frame=[0 0 0.007]';
     t_sacroiliac=[0.00428703 -0.00257222 0.00857407]';
+elseif contains(in_folder,'rat22')
+    pos_hip_in_pelvis_frame=[0 0 0.007]';
+    t_sacroiliac=[0.00465216 -0.0027913 0.00930433]';
 elseif contains(in_folder,'rat23')
     pos_hip_in_pelvis_frame=[0 0 0.007]';
     t_sacroiliac=[0.00370292 -0.00222175 0.00740585]';
