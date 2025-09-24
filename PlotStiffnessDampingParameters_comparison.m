@@ -1,5 +1,10 @@
-S1=load('sol_val_optJointPassive_optInertia_DataMay2025IntactFB_tolem5_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_rel2Dangles_N40.mat');
-S2=load('sol_val_optJointPassive_optInertia_DataMay2025achilelscutFB_tolem5_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_rel2Dangles_N40.mat');
+clear all;
+
+S1=load('sol_val_optJointPassive_DataMay2025baselineF_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+S2=load('sol_val_optJointPassive_DataMay2025achillescutF_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+
+Options=S1.sol_val.Options;
+main_folder=S1.sol_val.main_folder;
 
 %% case 7+7 trials
 % x=[30 15 0 -15 0 15 30];
@@ -14,19 +19,38 @@ maxylimI(1:3)=1e-5;
 if Options.individualpassiveprop==1
     ntrials4passprop=size(S1.sol_val.nametrials,1);
     list4passprop=[];
-elseif contains(main_folder,'May2025')
-    ntrials4passprop=4;
-    list4passprop=[4 3 2 1 1 2 3 4 4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
+elseif contains(main_folder,'May2025')||contains(main_folder,'August2025')||contains(main_folder,'rat25')
+    if contains(main_folder,'May2025')
+        ntrials4passprop=4;
+        list4passprop=[4 3 2 1 1 2 3 4 4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
+    else
+        ntrials4passprop=5;
+        list4passprop=[5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 0 10...
+    end
     if size(S1.sol_val.Kstiff_unsc,2)==1
-        S1.sol_val.Kstiff_unsc=reshape(S1.sol_val.Kstiff_unsc,3,4);
-        S2.sol_val.Kstiff_unsc=reshape(S2.sol_val.Kstiff_unsc,3,4);
-        S1.sol_val.Ddamp_unsc=reshape(S1.sol_val.Ddamp_unsc,3,4);
-        S2.sol_val.Ddamp_unsc=reshape(S2.sol_val.Ddamp_unsc,3,4);
-        S1.sol_val.theta0_unsc=reshape(S1.sol_val.theta0_unsc,3,4);
-        S2.sol_val.theta0_unsc=reshape(S2.sol_val.theta0_unsc,3,4);
+        if isfield(Options,'KDwithinteractionterms')
+            if Options.KDwithinteractionterms
+                useinteractions=1;
+            else
+                useinteractions=0;
+            end
+        else
+            useinteractions=0;
+        end
+        
+        nvar_passparam=Options.nvar_passparam; %6 using interactions, 3 without
+        
+        
+        S1.sol_val.Kstiff_unsc=reshape(S1.sol_val.Kstiff_unsc,nvar_passparam,ntrials4passprop);
+        S2.sol_val.Kstiff_unsc=reshape(S2.sol_val.Kstiff_unsc,nvar_passparam,ntrials4passprop);
+        S1.sol_val.Ddamp_unsc=reshape(S1.sol_val.Ddamp_unsc,nvar_passparam,ntrials4passprop);
+        S2.sol_val.Ddamp_unsc=reshape(S2.sol_val.Ddamp_unsc,nvar_passparam,ntrials4passprop);
+        S1.sol_val.theta0_unsc=reshape(S1.sol_val.theta0_unsc,3,ntrials4passprop);
+        S2.sol_val.theta0_unsc=reshape(S2.sol_val.theta0_unsc,3,ntrials4passprop);
+        
         if Options.optInertiapassiveParam
-            S1.sol_val.InertiapassiveParam_unsc=reshape(S1.sol_val.InertiapassiveParam_unsc,3,4);
-            S2.sol_val.InertiapassiveParam_unsc=reshape(S2.sol_val.InertiapassiveParam_unsc,3,4);
+            S1.sol_val.InertiapassiveParam_unsc=reshape(S1.sol_val.InertiapassiveParam_unsc,3,ntrials4passprop);
+            S2.sol_val.InertiapassiveParam_unsc=reshape(S2.sol_val.InertiapassiveParam_unsc,3,ntrials4passprop);
         end
     end
 else
@@ -71,6 +95,30 @@ if isfield(S1.sol_val.Options,'optInertiapassiveParam')
         hout1(i)=PlotTrials_Inertia(X,x,S1.sol_val,MFC1,i,maxylimI,FA,ntrials4passprop,S1.sol_val.Options,list4passprop);
         hout2(i)=PlotTrials_Inertia(X,x,S2.sol_val,MFC2,i,maxylimI,FA,ntrials4passprop,S2.sol_val.Options,list4passprop);
     
+        end
+    end
+end
+
+if isfield(S1.sol_val.Options,'KDwithinteractionterms')
+    ylimK_inter(1,1:3)=0;
+    ylimD_inter(1,1:3)=0;
+    ylimK_inter(2,1:3)=0.005;
+    ylimD_inter(2,1:3)=0.03;
+    if S1.sol_val.Options.KDwithinteractionterms
+        figure
+        for i=1:size(S1.sol_val.Kstiff_unsc,2)
+            if i<=7
+                X=x(i);
+                FA=1;
+            else
+                X=x(i-7);
+                FA=0.5;
+            end
+        MFC1=[0.00,0.45,0.74];
+        MFC2=[1,0.45,0.24];
+
+        hout1(i)=PlotTrials_KDinteractions(X,x,S1.sol_val,MFC1,i,ylimK_inter,ylimD_inter,FA,ntrials4passprop,S1.sol_val.Options,list4passprop);
+        hout2(i)=PlotTrials_KDinteractions(X,x,S2.sol_val,MFC2,i,ylimK_inter,ylimD_inter,FA,ntrials4passprop,S2.sol_val.Options,list4passprop);
         end
     end
 end
@@ -458,4 +506,242 @@ function x=obtainPerturbIDs(nametrials)
     end
 
 
+end
+
+function hout=PlotTrials_KDinteractions(X,x,sol_val,MFC,i,ylimK_inter,ylimD_inter,FA,ntrials4passprop,Options,list4passprop)
+xticks=unique(sort(x));    
+
+    subplot(3,2,1);
+    if Options.individualpassiveprop
+        keyboard; %not implemented
+        Itrial4passprop=i;
+        scatter(X,sol_val.Kstiff_unsc{i}(1),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        Itrial4passprop=list4passprop(i);
+        scatter(X,sol_val.Kstiff_unsc(4,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    end
+    title('Stiffness inter hip-knee');
+    set(gca,'Xtick',xticks);
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            maxylimK(1)=max([y(2),maxylimK(1),sol_val.Kstiff_unsc{i}(1)]);
+        else
+            minylimK(1)=min([y(1),ylimK_inter(1,1),sol_val.Kstiff_unsc(4,Itrial4passprop)]);
+            maxylimK(1)=max([y(2),ylimK_inter(2,1),sol_val.Kstiff_unsc(4,Itrial4passprop)]);
+        end
+    else
+        if Options.individualpassiveprop
+            keyboard;
+            maxylimK(1)=max(maxylimK(1),sol_val.Kstiff_unsc{i}(1));
+        else
+            minylimK(1)=min(ylimK_inter(1,1),sol_val.Kstiff_unsc(4,Itrial4passprop));
+            maxylimK(1)=max(ylimK_inter(2,1),sol_val.Kstiff_unsc(4,Itrial4passprop));
+        end
+    end
+    maxylimK(1)=ceil(maxylimK(1)*100)/100;
+    ylim([0 maxylimK(1)]);
+    ylabel('K [Nm/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
+
+    subplot(3,2,3);
+    if Options.individualpassiveprop
+        keyboard; %not implemented
+        Itrial4passprop=i;
+        scatter(X,sol_val.Kstiff_unsc{i}(2),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        if Options.nointeraction_hipankle
+            set(gca,'Color',[0.5 0.5 0.5]);
+        else
+            Itrial4passprop=list4passprop(i);
+            scatter(X,sol_val.Kstiff_unsc(5,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+        end
+    end
+    title('Stiffness inter hip-ankle');
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            maxylimK(2)=max([y(2),maxylimK(2),sol_val.Kstiff_unsc{i}(2)]);
+        else
+            minylimK(2)=min([y(1),ylimK_inter(1,2),sol_val.Kstiff_unsc(5,Itrial4passprop)]);
+            maxylimK(2)=max([y(2),ylimK_inter(2,2),sol_val.Kstiff_unsc(5,Itrial4passprop)]);
+        end
+    else
+        if Options.individualpassiveprop
+            maxylimK(2)=max(maxylimK(2),sol_val.Kstiff_unsc{i}(2));
+        else
+            minylimK(2)=min(ylimK_inter(1,2),sol_val.Kstiff_unsc(5,Itrial4passprop));
+            maxylimK(2)=max(ylimK_inter(2,2),sol_val.Kstiff_unsc(5,Itrial4passprop));
+        end
+    end
+    set(gca,'Xtick',xticks);
+    maxylimK(2)=ceil(maxylimK(2)*100)/100;
+    ylim([0 maxylimK(2)]);
+    ylabel('K [Nm/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
+
+    subplot(3,2,5);
+    if Options.individualpassiveprop
+        keyboward;
+        Itrial4passprop=i;
+        scatter(X,sol_val.Kstiff_unsc{i}(3),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        Itrial4passprop=list4passprop(i);
+        if Options.nointeraction_hipankle
+            scatter(X,sol_val.Kstiff_unsc(5,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+        else
+            scatter(X,sol_val.Kstiff_unsc(6,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+        end
+    end
+    title('Stiffness inter knee-ankle');
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            maxylimK(3)=max([y(2),maxylimK(3),sol_val.Kstiff_unsc{i}(3)]);
+        else
+            if Options.nointeraction_hipankle
+                minylimK(3)=min([y(1),ylimK_inter(1,3),sol_val.Kstiff_unsc(5,Itrial4passprop)]);
+                maxylimK(3)=max([y(2),ylimK_inter(2,3),sol_val.Kstiff_unsc(5,Itrial4passprop)]);
+            else
+                minylimK(3)=min([y(1),ylimK_inter(1,3),sol_val.Kstiff_unsc(6,Itrial4passprop)]);
+                maxylimK(3)=max([y(2),ylimK_inter(2,3),sol_val.Kstiff_unsc(6,Itrial4passprop)]);
+            end
+        end
+    else
+        if Options.individualpassiveprop
+            maxylimK(3)=max(maxylimK(3),sol_val.Kstiff_unsc{i}(3));
+        else
+            if Options.nointeraction_hipankle
+                minylimK(3)=min(ylimK_inter(1,3),sol_val.Kstiff_unsc(5,Itrial4passprop));
+                maxylimK(3)=max(ylimK_inter(2,3),sol_val.Kstiff_unsc(5,Itrial4passprop));
+            else
+                minylimK(3)=min(ylimK_inter(1,3),sol_val.Kstiff_unsc(6,Itrial4passprop));
+                maxylimK(3)=max(ylimK_inter(2,3),sol_val.Kstiff_unsc(6,Itrial4passprop));
+            end
+        end
+    end
+    set(gca,'Xtick',xticks);
+    maxylimK(3)=ceil(maxylimK(3)*100)/100;
+    ylim([0 maxylimK(3)]);
+    ylabel('K [Nm/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
+
+    %Damping
+    subplot(3,2,2);
+    if Options.individualpassiveprop
+        keyboard;
+        scatter(X,sol_val.Ddamp_unsc{i}(1),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        Itrial4passprop=list4passprop(i);
+        scatter(X,sol_val.Ddamp_unsc(4,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    end
+    title('Damping inter hip-knee');
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            maxylimD(1)=max([y(2),maxylimD(1),sol_val.Ddamp_unsc{i}(1)]);
+        else
+            minylimD(1)=min([y(1),ylimD_inter(1,1),sol_val.Ddamp_unsc(4,Itrial4passprop)]);
+            maxylimD(1)=max([y(2),ylimD_inter(2,1),sol_val.Ddamp_unsc(4,Itrial4passprop)]);
+        end
+    else
+        if Options.individualpassiveprop
+            maxylimD(1)=max(maxylimD(1),sol_val.Ddamp_unsc{i}(1));
+        else
+            minylimD(1)=min(ylimK_inter(1,1),sol_val.Ddamp_unsc(4,Itrial4passprop));
+            maxylimD(1)=max(ylimK_inter(2,1),sol_val.Ddamp_unsc(4,Itrial4passprop));
+        end
+    end
+    set(gca,'Xtick',xticks);
+    maxylimD(1)=ceil(maxylimD(1)*100)/100;
+    ylim([0 maxylimD(1)]);
+    ylabel('D [Nms/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
+
+    subplot(3,2,4);
+    if Options.individualpassiveprop
+        keyboard;
+        scatter(X,sol_val.Ddamp_unsc{i}(2),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        if Options.nointeraction_hipankle
+            set(gca,'Color',[0.5 0.5 0.5]);
+        else
+            Itrial4passprop=list4passprop(i);
+            scatter(X,sol_val.Ddamp_unsc(5,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);       
+        end
+    end
+    title('Damping inter hip-ankle');
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            keyboard;
+            maxylimD(1)=max([y(2),maxylimD(1),sol_val.Ddamp_unsc{i}(2)]);
+        else
+            minylimD(2)=min([y(1),ylimD_inter(1,2),sol_val.Ddamp_unsc(5,Itrial4passprop)]);
+            maxylimD(2)=max([y(2),ylimD_inter(2,2),sol_val.Ddamp_unsc(5,Itrial4passprop)]);        
+        end
+    else
+        if Options.individualpassiveprop
+            maxylimD(2)=max(maxylimD(2),sol_val.Ddamp_unsc{i}(2));
+        else
+            minylimD(2)=min(ylimK_inter(1,2),sol_val.Ddamp_unsc(5,Itrial4passprop));
+            maxylimD(2)=max(ylimK_inter(2,2),sol_val.Ddamp_unsc(5,Itrial4passprop));
+        end
+    end
+    set(gca,'Xtick',xticks);
+    maxylimD(2)=ceil(maxylimD(2)*100)/100;
+    ylim([0 maxylimD(2)]);
+    ylabel('D [Nms/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
+
+    subplot(3,2,6);
+    if Options.individualpassiveprop
+        keyboard;
+        hout=scatter(X,sol_val.Ddamp_unsc{i}(3),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+    else
+        Itrial4passprop=list4passprop(i);
+        if Options.nointeraction_hipankle
+            hout=scatter(X,sol_val.Ddamp_unsc(5,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+        else
+            hout=scatter(X,sol_val.Ddamp_unsc(6,Itrial4passprop),'o','MarkerFaceColor',MFC,'MarkerEdgeColor','none','MarkerFaceAlpha',FA);
+        end
+    end
+    title('Damping inter knee-ankle');
+    if i>1
+        y=ylim;
+        if Options.individualpassiveprop
+            maxylimD(3)=max([y(2),maxylimD(3),sol_val.Ddamp_unsc{i}(3)]);
+        else
+            if Options.nointeraction_hipankle
+                minylimD(3)=min([y(1),ylimD_inter(1,3),sol_val.Ddamp_unsc(5,Itrial4passprop)]);
+                maxylimD(3)=max([y(2),ylimD_inter(2,3),sol_val.Ddamp_unsc(5,Itrial4passprop)]); 
+            else
+                minylimD(3)=min([y(1),ylimD_inter(1,3),sol_val.Ddamp_unsc(6,Itrial4passprop)]);
+                maxylimD(3)=max([y(2),ylimD_inter(2,3),sol_val.Ddamp_unsc(6,Itrial4passprop)]);     
+            end
+        end
+    else
+        if Options.individualpassiveprop
+            maxylimD(3)=max(maxylimD(3),sol_val.Ddamp_unsc{i}(3));
+        else
+            if Options.nointeraction_hipankle
+                minylimD(3)=min([ylimD_inter(1,3),sol_val.Ddamp_unsc(5,Itrial4passprop)]);
+                maxylimD(3)=max([ylimD_inter(2,3),sol_val.Ddamp_unsc(5,Itrial4passprop)]); 
+            else
+                minylimD(3)=min([ylimD_inter(1,3),sol_val.Ddamp_unsc(6,Itrial4passprop)]);
+                maxylimD(3)=max([ylimD_inter(2,3),sol_val.Ddamp_unsc(6,Itrial4passprop)]);  
+            end
+        end
+    end
+    set(gca,'Xtick',xticks);
+    maxylimD(3)=ceil(maxylimD(3)*100)/100;
+    ylim([0 maxylimD(3)]);
+    ylabel('D [Nms/rad]');
+    hold all;
+    xlim([min(x) max(x)]);
 end

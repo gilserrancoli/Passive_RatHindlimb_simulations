@@ -1,6 +1,5 @@
-S1=load('sol_val_optJointPassive_optInertia_DataMay2025IntactFB_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_optInertiaPassprop_ParamId.mat');
-S2=load('sol_val_optJointPassive_optInertia_DataMay2025achillescutFB_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_optInertiaPassprop_ParamId.mat');
-
+S1=load('sol_val_optJointPassive_DataMay2025baselineF_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+S2=load('sol_val_optJointPassive_DataMay2025achillescutF_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 
 for i=1:length(S1.sol_val.out)
     figure(i)

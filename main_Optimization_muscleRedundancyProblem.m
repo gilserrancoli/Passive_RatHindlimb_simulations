@@ -19,16 +19,16 @@ Options.penalizeoutoflMtilde1=0;
 Options.optInertiaParam=1;
 Options.minPassiveProp=1;
 Options.pendevPassive=1; 
-Options.optInertiapassiveParam=1;
+Options.optInertiapassiveParam=0;
 
 Options.optimizeMuscleProp=0;
 Options.optimizePassiveJointEl=1;
     Options.orderPassiveJoint=1; %either 1 or 3
 Options.individualpassiveprop=0;
 
-Options.secondfolder=1;
-main_folder='DataMay2025\baseline_ForwardOnly\';
-main_folder2='DataMay2025\baseline_BackwardOnly\';
+Options.secondfolder=0;
+main_folder='DataAugust2025\baseline_forward_10mm\';
+% main_folder2='DataMay2025\baseline_BackwardOnly_nokneemarker\';
 
 
 %% 
@@ -229,7 +229,9 @@ W.penalizeoutoflMtilde1=0;
 W.InertiaParam=1e-2;
 W.penalizeFTtot=1e-4;
 W.penalizeoutoflMtilde1=0.01;
-W.minresidual=50;
+% W.minresidual=50;
+% W.minresidual=sqrt([5 20 50]);
+W.minresidual=sqrt([50 50 50]);
 
 
 ParallelMode='thread';
@@ -424,6 +426,9 @@ if Options.optimizePassiveJointEl
     elseif contains(main_folder,'May2025')
         ntrials4passprop=4;
         list4passprop=[4 3 2 1 1 2 3 4 4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
+    elseif contains(main_folder,'August2025')
+        ntrials4passprop=5;
+        list4passprop=[5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 -10 0 10...
     else
         %define how many different passive prop are considered
         keyboard;
@@ -877,7 +882,7 @@ for i=1:length(nametrials)
             if Options.penalizeoutoflMtilde1
                 J_d=J_d+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2)*h{i};
             end
-            J_d=J_d+B(j+1)*W.minresidual*sum(res_j(:,j).^2)*h{i};
+            J_d=J_d+B(j+1)*sum((W.minresidual'.*res_j(:,j)).^2)*h{i};
             
             %for debug
             JmindFTtilde{i}=JmindFTtilde{i}+B(j+1)*W.mindstate*sum(dFTtilde_j(:,j).^2)*h{i};
@@ -890,10 +895,10 @@ for i=1:length(nametrials)
             if Options.penalizeoutoflMtilde1
                 JpenlMttilde{i}=JpenlMttilde{i}+B(j+1)*W.penalizeoutoflMtilde1*sum((lMtilde_j{j}-1).^2)*h{i};
             end
-            Jminresidual{i}=Jminresidual{i}+B(j+1)*W.minresidual*sum(res_j(:,j).^2)*h{i};
+            Jminresidual{i}=Jminresidual{i}+B(j+1)*sum((W.minresidual'.*res_j(:,j)).^2)*h{i};
         else
-            J_d=J_d+B(j+1)*W.minresidual*sum(res_j(:,j).^2)*h{i};
-            Jminresidual{i}=Jminresidual{i}+B(j+1)*W.minresidual*sum(res_j(:,j).^2)*h{i};
+            J_d=J_d+B(j+1)*sum((W.minresidual'.*res_j(:,j)).^2)*h{i};
+            Jminresidual{i}=Jminresidual{i}+B(j+1)*sum((W.minresidual'.*res_j(:,j)).^2)*h{i};
         end
     end
     eq_constr = vertcat(eq_constr{:});
@@ -1202,6 +1207,7 @@ for i=1:size(QsQdots_col,2)
     sol_val.QsQdots_col_unsc{i}=QsQdots_col{i};
     sol_val.Qd2dot_col_unsc{i}=Qd2dot_col{i};
 end
+sol_val.forces_prescribed=forces_prescribed;
 
 if Options.optimizeMuscleProp
     % Recompute lMT
@@ -1602,14 +1608,18 @@ end
 function  expdata=LoadData(N,d,tau_root,main_folder)
     current_folder=pwd;
     kinfiles=dir([main_folder '/kinematics/' '/*.mot']);
-    kinfiles=kinfiles(~contains({kinfiles.name}, '_2Dangles'));
+    if contains(main_folder,'nokneemarker')&&contains(main_folder,'May2025')||contains(main_folder,'August2025')
+        kinfiles=kinfiles(contains({kinfiles.name}, '_2D'));
+    else
+        kinfiles=kinfiles(~contains({kinfiles.name}, '_2Dangles'));
+    end
     forcefiles=dir([main_folder '/perturbation/' '/*.mot']);
         for i=1:length(kinfiles);
            kinfilename=kinfiles(i).name; 
            kindata=importdata([kinfiles(i).folder '/' kinfiles(i).name]);
            if strcmp(main_folder,'DataSeptember')
             trial_name=[strrep(kinfilename,'.mot','')];
-           elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')
+           elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')||contains(main_folder,'DataAugust2025')
                 trial_name=[strrep(strrep(kinfilename,'.mot',''),'.','_')];
                 trial_name=[strrep(trial_name,'-','m')];
            else
@@ -1631,8 +1641,9 @@ function  expdata=LoadData(N,d,tau_root,main_folder)
            [B,A]=butter(3,100/(5000/2));
            for j=2:size(kindata.data,2)
                 intdata=interp1(kindata.data(:,1),kindata.data(:,j),t,'spline');
-                smoothed_kin=smooth(t,intdata,0.5,'rloess');
-                smoothed_filt_kin=filtfilt(B,A,smoothed_kin);
+                % smoothed_kin=smooth(t,intdata,0.5,'rloess');%test when using
+                % IK from OpenSim
+                smoothed_filt_kin=filtfilt(B,A,intdata);
 
                 kindata_spline(j-1)=spline(t,smoothed_filt_kin);
 

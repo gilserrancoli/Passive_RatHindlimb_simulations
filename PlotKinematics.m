@@ -17,6 +17,16 @@ for i=1:length(sol_val.QsQdots_unsc)
             title(name_dofs{j});
             ylabel('[º]')
             xlabel('time [s]')
+            center=(max(sol_val.guess.QsQdots{i}(sol_val.t2plot{i},(j-1)*2+1)*sol_val.scaling.q*180/pi)+min(sol_val.guess.QsQdots{i}(sol_val.t2plot{i},(j-1)*2+1)*sol_val.scaling.q*180/pi))/2;
+
+            maxrange=max(range(sol_val.guess.QsQdots{i}(sol_val.t2plot{i},(j-1)*2+1)*sol_val.scaling.q*180/pi),range(sol_val.QsQdots_col_unsc{i}((j-1)*2+1,:)*180/pi));
+            if maxrange<3
+                offset=1.5;
+            else
+                offset=maxrange/2+0.05;
+            end
+
+            ylim([center-offset center+offset]);
         end
         legend({'experimental','model'})
 

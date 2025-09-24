@@ -1,5 +1,5 @@
-S1=load('sol_val_optKinematics_optJointPassive_optInertia_DataMay2025IntactFB_tolem5_Jqtrack100_Jqtrackdot10_Jtrackqd2dot001_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_rel2Dangles_N40.mat');
-S2=load('sol_val_optKinematics_optJointPassive_optInertia_DataMay2025achillescutFB_tolem5_Jqtrack100_Jqtrackdot10_Jtrackqd2dot001_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_rel2Dangles_N40.mat');
+S1=load('sol_val_optJointPassive_optInertia_DataMay2025IntactFB_tolem5_Jqtrack100_Jqtrackdot10_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_N40.mat');
+S2=load('sol_val_optJointPassive_optInertia_DataMay2025achillescutFB_tolem5_Jqtrack100_Jqtrackdot10_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_N40.mat');
 
 [S1.sol_val.out_exp, S1.sol_val.out_exp_zeroqqdotforce, S1.sol_val.out_exp_onlyqdot, S1.sol_val.out_exp_onlyqd2dot, S1.sol_val.out_exp_onlyforces]=CalculateMoments_initialguess(S1.sol_val,F);
 [S1.sol_val.out, S1.sol_val.out_zeroqqdotforce, S1.sol_val.out_onlyqdot, S1.sol_val.out_onlyqd2dot, S1.sol_val.out_onlyforces]=CalculateMoments(S1.sol_val,F);

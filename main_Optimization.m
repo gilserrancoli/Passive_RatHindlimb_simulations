@@ -1,7 +1,8 @@
+cd(fileparts(mfilename('fullpath')));
 clear all;
 import casadi.*
 method='legendre';
-
+keyboard;
 %% Options
 Options.useRigidTendon=0;
 Options.optimizelM0=1;
@@ -20,15 +21,15 @@ Options.minPassiveProp=1;
 Options.pendevPassive=1; 
 Options.startfromprevioussolution=0;
     Options.prev_sol=load('sol_val_optKinematics_optJointPassive_optInertia_DataMarch2025AchillescutForward&Backward_tolem5_WRONGwithoutcontconstr.mat');
-Options.optInertiapassiveParam=1;
+Options.optInertiapassiveParam=0;
 
 Options.optimizeMuscleProp=0;
 Options.optimizePassiveJointEl=1;
 Options.individualpassiveprop=0;
 
-Options.secondfolder=1;
-main_folder='DataMay2025\baseline_ForwardOnly_rel2Dangles\';
-main_folder2='DataMay2025\baseline_BackwardOnly_rel2Dangles\';
+Options.secondfolder=0;
+main_folder='DataAugust2025\baseline_forward_10mm\';
+% main_folder2='DataMay2025\baseline_BackwardOnly_nokneemarker\';
 
 Options.main_folder=main_folder;
 %% 
@@ -223,8 +224,8 @@ W.lM0lit=0.00001;
 W.min_maxa=0.1;
 W.state_for_reg=1e-6;
 W.mindstate=0.01; %0.1
-W.qtrack=100; %10
-W.qdottrack=10; %0.1
+W.qtrack=1000; %10
+W.qdottrack=100; %0.1
 W.penalizeHighFTtilde=10;
 W.Kstiff=1e-5; %minimization
 W.Ddamp=1e-5;
@@ -430,6 +431,9 @@ if Options.optimizePassiveJointEl
     elseif contains(main_folder,'May2025')
         ntrials4passprop=4;
         list4passprop=[4 3 2 1 1 2 3 4 4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
+    elseif contains(main_folder,'August2025')
+        ntrials4passprop=5;
+        list4passprop=[5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 -10 0 10...
     else
         %define how many different passive prop are considered
         keyboard;
@@ -652,7 +656,7 @@ for i=1:length(nametrials)
         g2_names=[g2_names; repmat({'Qs cons'},ndofs,1)];
 
         Qdots_nsc = [QsQdots_k(2:2:end,:) QsQdots_j(2:2:end,:)].*scaling.QsQdots(2:2:end)'*C(:,j+1); %QsQdots_sol already in the original scale
-        eq_constr{end+1}=(h{i}*Qd2dots_j(:,j).*scaling.qd2dot'-Qdots_nsc)/scaling.qd2dot(1);
+        eq_constr{end+1}=(h{i}*Qd2dots_j(:,j).*scaling.qd2dot'-Qdots_nsc)/(scaling.qd2dot(1)*10);
         g2_names=[g2_names; repmat({'Qsdot cons'},ndofs,1)];
 
         %Muscle force sharing
@@ -1019,7 +1023,7 @@ J=J+J_i;
 opti.minimize(J);
 options.ipopt.hessian_approximation = 'limited-memory'; %'exact'; %
 options.ipopt.mu_strategy      = 'adaptive';
-options.ipopt.max_iter = 2000;
+options.ipopt.max_iter = 10000;
 options.ipopt.tol = 1e-5;   
 opti.solver('ipopt', options);  
 sol=opti.solve();
@@ -1210,7 +1214,7 @@ sol_val.guess=guess;
 sol_val.bounds=bounds;
 sol_val.QsQdot_prescribed=QsQdot_prescribed;
 sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
-sol_val.force_prescribed=forces_prescribed;
+sol_val.forces_prescribed=forces_prescribed;
 sol_val.name_dofs=name_dofs;
 sol_val.nametrials=nametrials;
 if Options.optimizeMuscleProp
@@ -1279,7 +1283,7 @@ for i=1:length(Jq)
 end
 if Options.optimizePassiveJointEl
     if Options.minPassiveProp
-        opti.value(J_passjoint{i});
+        opti.value(J_passjoint);
         J_opt=J_opt+opti.value(J_passjoint);
         J_optpassjoint=J_optpassjoint+opti.value(J_passjoint);
     end
@@ -1366,7 +1370,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_hip_flx_opt=-sol_val.Kstiff_unsc(1,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(1,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(1,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(2,:)';
             if Options.optInertiapassiveParam
-                PassiveM_hip_flx_opt=PassiveM_hip_flx_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*(sol_val.Qd2dot_col_unsc{i}(:,1));
+                PassiveM_hip_flx_opt=PassiveM_hip_flx_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(1,:)';
             end
         else
             PassiveM_hip_flx_opt=zeros(d*N,1);   
@@ -1388,7 +1392,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_hip_add_opt=-sol_val.Kstiff_unsc(1,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(3,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(1,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(4,:)';
             if Options.optInertiapassiveParam
-                PassiveM_hip_add_opt=PassiveM_hip_add_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,2);
+                PassiveM_hip_add_opt=PassiveM_hip_add_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(2,:)';
             end
         else
             PassiveM_hip_add_opt=zeros(d*N,1);
@@ -1409,7 +1413,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_hip_int_opt=-sol_val.Kstiff_unsc(1,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(5,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(1,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(6,:)';
             if Options.optInertiapassiveParam
-                PassiveM_hip_int_opt=PassiveM_hip_int_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,3);
+                PassiveM_hip_int_opt=PassiveM_hip_int_opt-sol_val.InertiapassiveParam_unsc(1,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(3,:)';
             end
         else
             PassiveM_hip_int_opt=zeros(d*N,1);
@@ -1431,7 +1435,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_knee_flx_opt=-sol_val.Kstiff_unsc(2,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(7,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(2,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(8,:)';
             if Options.optInertiapassiveParam
-                PassiveM_knee_flx_opt=PassiveM_knee_flx_opt-sol_val.InertiapassiveParam_unsc(2,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,4);
+                PassiveM_knee_flx_opt=PassiveM_knee_flx_opt-sol_val.InertiapassiveParam_unsc(2,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(4,:)';
             end
         else
             PassiveM_knee_flx_opt=zeros(d*N,1);
@@ -1453,7 +1457,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_ankle_flx_opt=-sol_val.Kstiff_unsc(3,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(9,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(3,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(10,:)';
             if Options.optInertiapassiveParam
-                PassiveM_ankle_flx_opt=PassiveM_ankle_flx_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,5);
+                PassiveM_ankle_flx_opt=PassiveM_ankle_flx_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(5,:)';
             end
         else
             PassiveM_ankle_flx_opt=zeros(d*N,1);       
@@ -1474,7 +1478,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_ankle_add_opt=-sol_val.Kstiff_unsc(3,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(11,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(3,Itrial4passprop)*sol_val.QsQdots_col_unsc{i}(12,:)';
             if Options.optInertiapassiveParam
-                PassiveM_ankle_add_opt=PassiveM_ankle_add_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,6);
+                PassiveM_ankle_add_opt=PassiveM_ankle_add_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(6,:)';
             end
         else
             PassiveM_ankle_add_opt=zeros(d*N,1);  
@@ -1495,7 +1499,7 @@ for i=1:length(sol_val.QsQdots_col_unsc)
         if Options.optimizePassiveJointEl
             PassiveM_ankle_int_opt=-sol_val.Kstiff_unsc(3,Itrial4passprop)*(sol_val.QsQdots_col_unsc{i}(13,:)'-sol_val.theta0_unsc(I,Itrial4passprop))-sol_val.Ddamp_unsc(3,Itrial4passprop)*sol_val.QsQdots_col_unsc(14,:)';
             if Options.optInertiapassiveParam
-                PassiveM_ankle_int_opt=PassiveM_ankle_int_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(:,7);
+                PassiveM_ankle_int_opt=PassiveM_ankle_int_opt-sol_val.InertiapassiveParam_unsc(3,Itrial4passprop)*sol_val.Qd2dot_col_unsc{i}(7,:)';
             end
         else
             PassiveM_ankle_int_opt=zeros(d*N,1);
@@ -1518,7 +1522,7 @@ for i=1:length(sol_val.QsQdots_unsc)
                 eq_constr_dyn_Qsopt{i}((k-1)*d+j,:)=(h{i}*sol_val.QsQdots_col_unsc{i}(2:2:end,(k-1)*d+j)-Qs_opt_nsc{i}(k,:)')/scaling.QsQdots(2);
 
                 Qdots_opt_nsc{i}(k,:) = [sol_val.QsQdots_unsc{i}(2:2:end,k) sol_val.QsQdots_col_unsc{i}(2:2:end,(k-1)*d+1:(k-1)*d+d)]*C(:,j+1); %QsQdots_sol already in the original scale
-                eq_constr_dyn_Qdot{i}((k-1)*d+j,:)=(h{i}*sol_val.Qd2dot_col_unsc{i}(:,(k-1)*d+j)-Qdots_opt_nsc{i}(k,:)')/scaling.qd2dot(1);
+                eq_constr_dyn_Qdot{i}((k-1)*d+j,:)=(h{i}*sol_val.Qd2dot_col_unsc{i}(:,(k-1)*d+j)-Qdots_opt_nsc{i}(k,:)')/(scaling.qd2dot(1)*10);
             end
 
 
@@ -1533,7 +1537,11 @@ end
 function  expdata=LoadData(N,d,tau_root,main_folder)
     current_folder=pwd;
     kinfiles=dir([main_folder '/kinematics/' '/*.mot']);
-    kinfiles=kinfiles(~contains({kinfiles.name}, '_2Dangles'));
+    if contains(main_folder,'nokneemarker')&&contains(main_folder,'May2025')||contains(main_folder,'August2025')
+        kinfiles=kinfiles(contains({kinfiles.name}, '_2D'));
+    else
+        kinfiles=kinfiles(~contains({kinfiles.name}, '_2Dangles'));
+    end
     forcefiles=dir([main_folder '/perturbation/' '/*.mot']);
     for i=1:length(kinfiles);
         kinfilename=kinfiles(i).name; 
@@ -1547,7 +1555,7 @@ function  expdata=LoadData(N,d,tau_root,main_folder)
         
        if strcmp(main_folder,'DataSeptember')
             trial_name=[strrep(kinfilename,'.mot','')];
-       elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')
+       elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')||contains(main_folder,'DataAugust2025')
             trial_name=[strrep(strrep(kinfilename,'.mot',''),'.','_')];
             trial_name=[strrep(trial_name,'-','m')];
        else
@@ -1562,9 +1570,9 @@ function  expdata=LoadData(N,d,tau_root,main_folder)
        [B,A]=butter(3,100/(5000/2));
        for j=2:size(kindata.data,2)
             intdata=interp1(kindata.data(:,1),kindata.data(:,j),t,'spline');
-            smoothed_kin=smooth(t,intdata,0.5,'rloess');
-            smoothed_filt_kin=filtfilt(B,A,smoothed_kin);
-
+            % smoothed_kin=smooth(t,intdata,0.4,'rloess'); %test when using
+            % IK from OpenSim
+            smoothed_filt_kin=filtfilt(B,A,intdata);
             kindata_spline(j-1)=spline(t,smoothed_filt_kin);
             expdata.(trial_name).kinematics(:,j)=ppval(kindata_spline(j-1),t);
             expdata.(trial_name).kinematics_v(:,j)=ppval(fnder(kindata_spline(j-1),1),t);
