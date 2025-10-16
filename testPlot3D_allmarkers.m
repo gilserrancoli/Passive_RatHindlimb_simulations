@@ -1,12 +1,15 @@
-baseline_folder='C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\Datarat22\baseline\kinematics';
-achillescut_folder='C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\Datarat22\anklecut\kinematics';
+baseline_folder='C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\Datarat21 - DataMay2025\baseline_ForwardOnly\kinematics';
+achillescut_folder='C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\Datarat21 - DataMay2025\achillescut_ForwardOnly\kinematics';
 
 cd(baseline_folder);
 baseline_files=dir('*.trc');
 data3d_baseline=GetData(baseline_files);
+pertdata_baseline=GetPertData(baseline_files);
 cd(achillescut_folder);
 achillescut_files=dir('*.trc');
 data3d_achillescut=GetData(achillescut_files);
+pertdata_achillescut=GetPertData(baseline_files);
+
 
 %Plot in 2D graphs
 figure(1);
@@ -23,7 +26,7 @@ figure(2);
 plot2d_concatenated(alldata);
 
 %% Compute mean points by perturbation
-[alldata_bypert, mdata_bypert]=ConcatenateAll_bypert(data3d_baseline,data3d_achillescut,baseline_folder);
+[alldata_bypert, mdata_bypert]=ConcatenateAll_bypert(data3d_baseline,data3d_achillescut,baseline_folder,pertdata_baseline,pertdata_achillescut);
 
 
 %% Compute mean points by perturbation
@@ -36,6 +39,10 @@ plot3d(data3d_achillescut);
 
 
 function out=GetData(files)
+    names = {files.name};
+    nums = str2double(regexprep(names, '^kinematics_(\d+)_.*$', '$1'));
+    [~, order] = sort(nums, 'ascend');
+    files = files(order);
 
     for i=1:length(files)
         data=readtable([files(i).folder '\' files(i).name],'FileType','text');
@@ -59,26 +66,33 @@ function out=GetData(files)
 end
 
 function plot2d(data,Color)
-
-    for i=1:length(data)
-        Colorj=Color;
-        Colorj(2)=0.1*(i-1);
-        points=fieldnames(data(i));
-        for j=1:length(points)
-            pointj=data(i).(points{j});
-            subplot(4,6,(j-1)*3+1)
-            plot([0:800],pointj(:,1),'Color',Colorj);
-            title(['X ' strrep(points{j},'_',' ')]);
-            hold all;
-            subplot(4,6,(j-1)*3+2)
-            plot([0:800],pointj(:,2),'Color',Colorj);
-            title('Y');
-            hold all;
-            subplot(4,6,(j-1)*3+3)
-            plot([0:800],pointj(:,3),'Color',Colorj);
-            title('Z');
-            hold all;
+    try
+        for i=1:length(data)
+            Colorj=Color;
+            if length(data)>10
+                Colorj(2)=(1/length(data))*(i-1);
+            else
+                Colorj(2)=0.1*(i-1);
+            end
+            points=fieldnames(data(i));
+            for j=1:length(points)
+                pointj=data(i).(points{j});
+                subplot(4,6,(j-1)*3+1)
+                plot([0:800],pointj(:,1),'Color',Colorj);
+                title(['X ' strrep(points{j},'_',' ')]);
+                hold all;
+                subplot(4,6,(j-1)*3+2)
+                plot([0:800],pointj(:,2),'Color',Colorj);
+                title('Y');
+                hold all;
+                subplot(4,6,(j-1)*3+3)
+                plot([0:800],pointj(:,3),'Color',Colorj);
+                title('Z');
+                hold all;
+            end
         end
+    catch
+        keyboard;
     end
 
 end
@@ -103,29 +117,38 @@ end
 
 function [alldata mdata]=ConcatenateAll(data3d_all);
 
-    markers={'pelvis_top','hip','pelvis_bottom'};
+    markers={'pelvis_top','hip','pelvis_bottom','ankle','mtp','toe'};
     for i=1:length(markers);
         alldata.(markers{i})=[];
         for j=1:length(data3d_all)
             alldata.(markers{i})=[alldata.(markers{i}); data3d_all(j).(markers{i})];
         end
-        mdata.(markers{i})=mean(alldata.(markers{i}));
+        if strcmp(markers{i},'ankle')||strcmp(markers{i},'mtp')||strcmp(markers{i},'toe')
+            nframes=length(alldata.(markers{i}));
+            nframesxtrial=size(data3d_all(j).(markers{i}),1);
+            mdata.(markers{i})=mean(alldata.(markers{i})(1:nframesxtrial:end,:));
+        else
+            mdata.(markers{i})=mean(alldata.(markers{i}));
+        end
+
+        
+
     end
 end
 
 function plot2d_concatenated(alldata)
 
-    markers={'pelvis_top','hip','pelvis_bottom'};
+    markers={'pelvis_top','hip','pelvis_bottom','ankle'};
     for i=1:length(markers)
-        subplot(3,3,(i-1)*3+1);
+        subplot(4,3,(i-1)*3+1);
         plot(alldata.(markers{i})(:,1));
         title(['X ' strrep(markers{i},'_',' ')]);
         ylabel('[mm]');
-        subplot(3,3,(i-1)*3+2);
+        subplot(4,3,(i-1)*3+2);
         plot(alldata.(markers{i})(:,2));
         title(['Y ' strrep(markers{i},'_',' ')]);
         ylabel('[mm]');
-        subplot(3,3,(i-1)*3+3);
+        subplot(4,3,(i-1)*3+3);
         plot(alldata.(markers{i})(:,3));
         title(['Z ' strrep(markers{i},'_',' ')]);
         ylabel('[mm]');
@@ -133,8 +156,8 @@ function plot2d_concatenated(alldata)
 
 end
 
-function [alldata mdata]=ConcatenateAll_bypert(data3d_baseline,data3d_achillescut,main_folder)
-    markers={'pelvis_top','hip','pelvis_bottom'};
+function [alldata mdata]=ConcatenateAll_bypert(data3d_baseline,data3d_achillescut,main_folder,pertdata_baseline,pertdata_achillescut)
+    markers={'pelvis_top','hip','pelvis_bottom','ankle','mtp','toe'};
     if contains(main_folder,'May2025')
         allperts=[30 20 10 0 0 10 20 30];
     elseif contains(main_folder,'rat22')
@@ -146,18 +169,58 @@ function [alldata mdata]=ConcatenateAll_bypert(data3d_baseline,data3d_achillescu
     for i=1:length(markers)
         for pert=1:length(unique_perts)
             alldata(pert).(markers{i})=[];
+            alldata(pert).perts=unique_perts(pert);
             I=find(allperts==unique_perts(pert));
             for j=1:length(I);
                 alldata(pert).(markers{i})=[alldata(pert).(markers{i}); data3d_baseline(I(j)).(markers{i}); data3d_achillescut(I(j)).(markers{i})];
             end
-            mdata(pert).(markers{i})=mean(alldata(pert).(markers{i}));
-            alldata(pert).perts=unique_perts(pert);
+            if strcmp(markers{i},'ankle')||strcmp(markers{i},'mtp')||strcmp(markers{i},'toe')
+                nframesxtrial=length(data3d_baseline(I(j)).(markers{i}));
+                mdata(pert).(markers{i})=mean(alldata(pert).(markers{i})(1:nframesxtrial:end,:));
+
+                ncases=size(alldata(pert).(markers{i}),1)/nframesxtrial;
+                for k=1:ncases
+                    pos_0=alldata(pert).(markers{i})((k-1)*nframesxtrial+1:k*nframesxtrial,:);
+                    p_centered=pos_0-mean(pos_0,1);
+                    [~,~,V]=svd(p_centered,'econ');
+                    vs.(markers{i})(:,k)=V(:,1);
+                end
+                mdata(pert).(['v_' markers{i}])=mean(vs.(markers{i}),2)./norm(mean(vs.(markers{i}),2));
+
+            else
+                mdata(pert).(markers{i})=mean(alldata(pert).(markers{i}));
+            end
             mdata(pert).perts=unique_perts(pert);
         end
-        
-
     end
-    
+
+    %motor data
+    for pert=1:length(unique_perts)
+        alldatamotor(pert).pertdata=[];
+        alldatamotor(pert).perts=unique_perts(pert);
+        I=find(allperts==unique_perts(pert));
+        for j=1:length(I);
+            alldatamotor(pert).pertdata=[alldatamotor(pert).pertdata pertdata_baseline(:,I(j)) pertdata_achillescut(:,I(j))];
+        end
+        mdata(pert).pert=mean(alldatamotor(pert).pertdata,2);
+    end
 
 end
 
+
+function pertdata=GetPertData(files)
+    names = {files.name};
+    nums = str2double(regexprep(names, '^kinematics_(\d+)_.*$', '$1'));
+    [~, order] = sort(nums, 'ascend');
+    files = files(order);
+for i=1:length(files)
+    filename=strrep(files(i).name,'kinematics','motor');
+    filename=strrep(filename,'.trc','.csv');
+    folder=files(i).folder;
+    folder=strrep(folder,'kinematics','perturbation');
+    data_pert=importdata([folder '\' filename]);
+    I_motorpert=find(contains(data_pert.colheaders,'filtered_position'));
+    pertdata(:,i)=data_pert.data(:,I_motorpert);
+end
+
+end
