@@ -20,6 +20,7 @@ Options.penalizeoutoflMtilde1=0;
 Options.optInertiaParam=1;
 Options.minPassiveProp=1;
 Options.pendevPassive=1; 
+Options.useRestingMoments=1;
 Options.optInertiapassiveParam=0;
 
 Options.optimizeMuscleProp=0;
@@ -29,9 +30,13 @@ Options.optimizePassiveJointEl=1;
         Options.nointeraction_hipankle=1;
 Options.individualpassiveprop=0;
 
-Options.secondfolder=0;
-main_folder='Datarat25\baseline_forward_2mm\';
-% main_folder2='DataMay2025\achillescut_BackwardOnly_nokneemarker\';
+Options.removefirstpertRat22=1;
+Options.normalizeCostFunction=1;
+
+Options.secondfolder=1;
+main_folder='Datarat21 - DataMay2025\baseline_ForwardOnly\';
+main_folder2='Datarat21 - DataMay2025\baseline_BackwardOnly\';
+ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat21baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 
 %% 
 N=40; %just used to discretize data
@@ -50,6 +55,12 @@ if Options.secondfolder==1;
     for i=1:length(fieldnames2)
         expdata.([fieldnames2{i} '_back'])=expdata2.([fieldnames2{i}]);
     end
+end
+
+if Options.removefirstpertRat22
+    fieldnames_struct=fieldnames(expdata);
+    I=find(contains(fieldnames_struct,'m20'));
+    expdata=rmfield(expdata,fieldnames_struct(I));
 end
 
 current_folder=pwd;
@@ -149,8 +160,22 @@ end
 
 %% Load external function
 if Options.optInertiaParam
-    F = external('F','RightRatHindlimb_Zhong_InertiaVar.dll')
+    if contains(main_folder,'rat21')
+        F = external('F','RightRatHindlimb_Zhong_InertiaVar_rat21.dll')
+    elseif contains(main_folder,'rat22')
+        F = external('F','RightRatHindlimb_Zhong_InertiaVar_rat22.dll')
+    elseif contains(main_folder,'rat23')
+        F = external('F','RightRatHindlimb_Zhong_InertiaVar_rat23.dll')
+    elseif contains(main_folder,'rat24')
+        F = external('F','RightRatHindlimb_Zhong_InertiaVar_rat24.dll')
+    elseif contains(main_folder,'rat25')
+        F = external('F','RightRatHindlimb_Zhong_InertiaVar_rat25.dll')
+    else
+        keyboard;
+    end
+    % F = external('F','RightRatHindlimb_Zhong_InertiaVar.dll')
 else
+    keyboard;
     F = external('F','RightRatHindlimb_Zhong.dll');   
 end
 
@@ -269,10 +294,15 @@ if Options.orderPassiveJoint==1
     bounds.D.upper=10;
     bounds.Inertiapassparam.lower=0;
     bounds.Inertiapassparam.upper=10;
-    bounds_theta0.lower=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'-180*pi/180;
-    bounds.theta0.lower=bounds_theta0.lower(find(Options.dofs_to_track));
-    bounds_theta0.upper=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'+180*pi/180;
-    bounds.theta0.upper=bounds_theta0.upper(find(Options.dofs_to_track));
+    if Options.useRestingMoments
+        bounds.K0.lower=-inf*ones(3,1);
+        bounds.K0.upper=inf*ones(3,1);
+    else
+        bounds_theta0.lower=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'-180*pi/180;
+        bounds.theta0.lower=bounds_theta0.lower(find(Options.dofs_to_track));
+        bounds_theta0.upper=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'+180*pi/180;
+        bounds.theta0.upper=bounds_theta0.upper(find(Options.dofs_to_track));
+    end
 end
 bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9 -0.001]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 bounds.inertiaParam.upper=[0.025 1.e-5 -0.005 0.015 1e-6 0.020 0.0050 1e-7      0]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
@@ -322,9 +352,13 @@ if Options.optimizePassiveJointEl
         guess.Ddamp=zeros(3*sum(Options.dofs_to_track),1);
     end
 end
-% guess.theta0=[0.0135, -0.1651,-0.0637,-1.1571,-0.1768]'; % computed as the mean of all initial values, TO BE REcalculated
-guess_theta0=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'/scaling.theta;; % computed as the mean of all initial values for h8 perturb1
-guess.theta0=guess_theta0(find(Options.dofs_to_track)); %take only the dofs that are tracked
+if Options.useRestingMoments
+    guess.K0=zeros(3,1);
+else
+    % guess.theta0=[0.0135, -0.1651,-0.0637,-1.1571,-0.1768]'; % computed as the mean of all initial values, TO BE REcalculated
+    guess_theta0=[0.1174,-0.2571,0.1223,-0.9237,0.2676,0.3305,0.0909]'/scaling.theta;; % computed as the mean of all initial values for h8 perturb1
+    guess.theta0=guess_theta0(find(Options.dofs_to_track)); %take only the dofs that are tracked
+end
 guess.inertiaParam=[0.01351 1.086e-06 -0.014936 0.00538 8.204e-07 0.0152275 0.00193 3.727e-08 -0.00546174]./scaling.inertiaparam;
 
 %% Start with an empty optimization
@@ -355,9 +389,28 @@ if Options.optimizePassiveJointEl
     elseif contains(main_folder,'May2025')&&Options.secondfolder==1
         ntrials4passprop=4;
         list4passprop=[4 3 2 1 1 2 3 4 4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
-    elseif contains(main_folder,'August2025')||contains(main_folder,'Datarat25')||contains(main_folder,'Datarat23')
+    elseif contains(main_folder,'rat22')&&Options.secondfolder==0
+        if Options.removefirstpertRat22
+            ntrials4passprop=5;
+            list4passprop=[5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 10 0 10...
+        else
+            ntrials4passprop=6;
+            list4passprop=[6 5 4 3 2 1 1 2 3 4 5 6]; %perturbations at 30 20 10 0 -10 -20 -20 -10 0 10...
+        end
+    elseif contains(main_folder,'rat22')&&Options.secondfolder==1
+        if Options.removefirstpertRat22
+            ntrials4passprop=5;
+            list4passprop=[5 4 3 2 1 1 2 3 4 5 5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 -20 -20 -10 0 10...
+        else
+            ntrials4passprop=6;
+            list4passprop=[6 5 4 3 2 1 1 2 3 4 5 6 6 5 4 3 2 1 1 2 3 4 5 6]; %perturbations at 30 20 10 0 -10 -20 -20 -10 0 10...
+        end
+    elseif (contains(main_folder,'August2025')||contains(main_folder,'Datarat25')||contains(main_folder,'Datarat23'))&&Options.secondfolder==0
         ntrials4passprop=5;
         list4passprop=[5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 -10 0 10...
+    elseif (contains(main_folder,'August2025')||contains(main_folder,'Datarat25')||contains(main_folder,'Datarat23'))&&Options.secondfolder==1
+        ntrials4passprop=5;
+        list4passprop=[5 4 3 2 1 1 2 3 4 5 5 4 3 2 1 1 2 3 4 5]; %perturbations at 30 20 10 0 -10 -10 0 10...
     else
         %define how many different passive prop are considered
         keyboard;
@@ -377,10 +430,18 @@ if Options.optimizePassiveJointEl
     ub=[ub; repmat(bounds.D.upper,ntrials4passprop*nvar_passparam,1)];
     varnames=[varnames; repmat({'Ds'},ntrials4passprop*nvar_passparam,1)];
 
-    x0=[x0; repmat(guess.theta0,ntrials4passprop,1)];
-    lb=[lb; repmat(bounds.theta0.lower,ntrials4passprop,1)];
-    ub=[ub; repmat(bounds.theta0.upper,ntrials4passprop,1)];
-    varnames=[varnames; repmat({'theta0s'},ntrials4passprop*3,1)];
+    if Options.useRestingMoments
+        nvar_passparam=length(guess.K0);
+        x0=[x0; repmat(guess.K0,ntrials4passprop,1)];
+        lb=[lb; repmat(bounds.K0.lower,ntrials4passprop,1)];
+        ub=[ub; repmat(bounds.K0.upper,ntrials4passprop,1)];
+        varnames=[varnames; repmat({'K0s'},ntrials4passprop*nvar_passparam,1)];
+    else
+        x0=[x0; repmat(guess.theta0,ntrials4passprop,1)];
+        lb=[lb; repmat(bounds.theta0.lower,ntrials4passprop,1)];
+        ub=[ub; repmat(bounds.theta0.upper,ntrials4passprop,1)];
+        varnames=[varnames; repmat({'theta0s'},ntrials4passprop*3,1)];
+    end
 
     if Options.optInertiapassiveParam
         x0=[x0; repmat(guess.Inertiapassparam,ntrials4passprop,1)];
@@ -396,7 +457,7 @@ b=[];
 Aeq=[];
 beq=[];
 options=optimset('Display','iter');
-[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 
 if Options.optInertiaParam
     I=contains(varnames,'inertiaParam');
@@ -411,8 +472,13 @@ if Options.optimizePassiveJointEl
     Kstiff=x(I);
     I=contains(varnames,'Ds');
     Ddamp=x(I);
-    I=contains(varnames,'theta0s');
-    theta0=x(I);
+    if Options.useRestingMoments
+        I=contains(varnames,'K0s');
+        K0=x(I);
+    else
+        I=contains(varnames,'theta0s');
+        theta0=x(I);
+    end
     if Options.optInertiapassiveParam
         I=contains(varnames,'inertiapassprop');
         InertiapassiveParam=x(I);
@@ -420,7 +486,11 @@ if Options.optimizePassiveJointEl
 
     Kstiff_unsc=Kstiff*scaling.Kstiff;
     Ddamp_unsc=Ddamp*scaling.Ddamp;
-    theta0_unsc=theta0*scaling.theta;
+    if Options.useRestingMoments
+        K0_unsc=K0_unsc*scaling.Kstiff;
+    else
+        theta0_unsc=theta0*scaling.theta;
+    end
     if Options.optInertiapassiveParam
         InertiapassiveParam_unsc=InertiapassiveParam*scaling.Inertiapassparam;
     end
@@ -475,7 +545,11 @@ for i=1:size(nametrials,1)
                     Kstiff_unsci=[Kstiff_unsci6(1) Kstiff_unsci6(4) Kstiff_unsci6(5); Kstiff_unsci6(4) Kstiff_unsci6(2) Kstiff_unsci6(6); Kstiff_unsci6(5) Kstiff_unsci6(6) Kstiff_unsci6(3)];
                     Ddamp_unsci=[Ddamp_unsci6(1) Ddamp_unsci6(4) Ddamp_unsci6(5); Ddamp_unsci6(4) Ddamp_unsci6(2) Ddamp_unsci6(6); Ddamp_unsci6(5) Ddamp_unsci6(6) Ddamp_unsci6(3)];
                 end
-                theta0_unsci=theta0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+                if Options.useRestingMoments
+                    K0_unsci=K0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+                else
+                    theta0_unsci=theta0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+                end
             end
             all_QsQdot(1,1:14)=QsQdot_prescribed{i}((k-1)*(d+1)+j+1,:);
             all_QsQdot(1,15:28)=QsQdots_col{i}((k-1)*d+j,:);
@@ -515,9 +589,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                        PassiveM_hip_flx=-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_hip_flx=K0_unsci(1)-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_hip_flx=-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_hip_flx=-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1)-theta0_unsc((Itrial4passprop-1)*3+1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);e
+                        if Options.useRestingMoments
+                            PassiveM_hip_flx=K0_unsci(1)-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);
+                        else
+                            PassiveM_hip_flx=-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1)-theta0_unsc((Itrial4passprop-1)*3+1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_hip_flx=PassiveM_hip_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+1)*Qd2dot_col{i}((k-1)*d+j,1);
@@ -605,9 +687,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                        PassiveM_knee_flx=-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_knee_flx=K0_unsci(2)-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_knee_flx=-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_knee_flx=-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7)-theta0_unsc((Itrial4passprop-1)*3+2))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        if Options.useRestingMoments
+                            PassiveM_knee_flx=K0_unsci(2)-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        else
+                            PassiveM_knee_flx=-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7)-theta0_unsc((Itrial4passprop-1)*3+2))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_knee_flx=PassiveM_knee_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+2)*Qd2dot_col{i}((k-1)*d+j,4);
@@ -637,9 +727,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                        PassiveM_ankle_flx=-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_ankle_flx=K0_unsci(3)-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_ankle_flx=-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_ankle_flx=-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9)-theta0_unsc((Itrial4passprop-1)*3+3))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        if Options.useRestingMoments
+                            PassiveM_ankle_flx=K0_unsci(3)-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        else
+                            PassiveM_ankle_flx=-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9)-theta0_unsc((Itrial4passprop-1)*3+3))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_ankle_flx=PassiveM_ankle_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+3)*Qd2dot_col{i}((k-1)*d+j,5);
@@ -726,8 +824,13 @@ sol_val.Kstiff=Kstiff;
 sol_val.Kstiff_unsc=Kstiff_unsc;
 sol_val.Ddamp=Ddamp;
 sol_val.Ddamp_unsc=Ddamp_unsc;
-sol_val.theta0=theta0;
-sol_val.theta0_unsc=theta0_unsc;
+if Options.useRestingMoments
+    sol_val.K0=K0;
+    sol_val.K0_unsc=K0_unsc;
+else
+    sol_val.theta0=theta0;
+    sol_val.theta0_unsc=theta0_unsc;
+end
 sol_val.out=out;
 sol_val.out_model=out_model;
 sol_val.Options=Options;
@@ -749,7 +852,7 @@ sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 
 
 
-function f=costfun(x,guess,varnames,Options,expdata,F)
+function f=costfun(x,guess,varnames,Options,expdata,F,ref_solution)
 f=[];
 
 ndofs=7;
@@ -778,8 +881,13 @@ if Options.optimizePassiveJointEl
     Kstiff=x(I);
     I=contains(varnames,'Ds');
     Ddamp=x(I);
-    I=contains(varnames,'theta0s');
-    theta0=x(I);
+    if Options.useRestingMoments
+        I=contains(varnames,'K0s');
+        K0=x(I);
+    else
+        I=contains(varnames,'theta0s');
+        theta0=x(I);
+    end
     if Options.optInertiapassiveParam
         I=contains(varnames,'inertiapassprop');
         InertiapassiveParam=x(I);
@@ -797,10 +905,17 @@ if Options.optimizePassiveJointEl
             difftheta0=theta0-repmat(guess.theta0,ntrials4passprop,1);
             f=[f; W.theta0*difftheta0(:)];
         end
+        if Options.useRestingMoments
+            f=[f; W.Kstiff*K0(:)];
+        end
     end
     Kstiff_unsc=Kstiff*scaling.Kstiff;
     Ddamp_unsc=Ddamp*scaling.Ddamp;
-    theta0_unsc=theta0*scaling.theta;
+    if Options.useRestingMoments
+        K0_unsc=K0*scaling.Kstiff;
+    else
+        theta0_unsc=theta0*scaling.theta;
+    end
     if Options.optInertiapassiveParam
         InertiapassiveParam_unsc=InertiapassiveParam*scaling.Inertiapassparam;
     end
@@ -838,7 +953,11 @@ for i=1:size(nametrials,1)
                 Kstiff_unsci=[Kstiff_unsci6(1) Kstiff_unsci6(4) Kstiff_unsci6(5); Kstiff_unsci6(4) Kstiff_unsci6(2) Kstiff_unsci6(6); Kstiff_unsci6(5) Kstiff_unsci6(6) Kstiff_unsci6(3)];
                 Ddamp_unsci=[Ddamp_unsci6(1) Ddamp_unsci6(4) Ddamp_unsci6(5); Ddamp_unsci6(4) Ddamp_unsci6(2) Ddamp_unsci6(6); Ddamp_unsci6(5) Ddamp_unsci6(6) Ddamp_unsci6(3)];
             end
-            theta0_unsci=theta0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+            if Options.useRestingMoments
+                K0_unsci=K0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+            else
+                theta0_unsci=theta0_unsc((Itrial4passprop-1)*3+1:Itrial4passprop*3);
+            end
         end
     end
 
@@ -886,9 +1005,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                         PassiveM_hip_flx=-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_hip_flx=K0_unsci(1)-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_hip_flx=-Kstiff_unsci(1,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(1,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_hip_flx=-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1)-theta0_unsc((Itrial4passprop-1)*3+1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);
+                        if Options.useRestingMoments
+                            PassiveM_hip_flx=K0_unsci(1)-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);
+                        else
+                            PassiveM_hip_flx=-Kstiff_unsc((Itrial4passprop-1)*3+1)*(QsQdots_col{i}((k-1)*d+j,1)-theta0_unsc((Itrial4passprop-1)*3+1))-Ddamp_unsc((Itrial4passprop-1)*3+1)*QsQdots_col{i}((k-1)*d+j,2);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_hip_flx=PassiveM_hip_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+1)*Qd2dot_col{i}((k-1)*d+j,1);
@@ -897,7 +1024,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_flx=0;
                 end
-                f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,8));
+                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5)];
+                else
+                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                end
             end
 
             %hip adduction
@@ -926,7 +1058,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_add=0;
                 end
-                f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,9));
+                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5)];
+                else
+                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                end
             end
 
             %hip rotation
@@ -955,7 +1092,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_rot=0;
                 end
-                f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,10));
+                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5)];
+                else
+                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                end
             end
 
             %knee flexion
@@ -976,9 +1118,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                        PassiveM_knee_flx=-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_knee_flx=K0_unsci(2)-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_knee_flx=-Kstiff_unsci(2,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(2,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_knee_flx=-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7)-theta0_unsc((Itrial4passprop-1)*3+2))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        if Options.useRestingMoments
+                            PassiveM_knee_flx=K0_unsci(2)-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        else
+                            PassiveM_knee_flx=-Kstiff_unsc((Itrial4passprop-1)*3+2)*(QsQdots_col{i}((k-1)*d+j,7)-theta0_unsc((Itrial4passprop-1)*3+2))-Ddamp_unsc((Itrial4passprop-1)*3+2)*QsQdots_col{i}((k-1)*d+j,8);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_knee_flx=PassiveM_knee_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+2)*Qd2dot_col{i}((k-1)*d+j,4);
@@ -987,7 +1137,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_knee_flx=0;
                 end
-                f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,11));
+                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5)];
+                else
+                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                end
             end
 
             %ankle flexion
@@ -1008,9 +1163,17 @@ for i=1:size(nametrials,1)
                     if Options.KDwithinteractionterms
                         %this is valid only if using sagittal plane angles
                         %and moments
-                        PassiveM_ankle_flx=-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        if Options.useRestingMoments
+                            PassiveM_ankle_flx=K0_unsci(3)-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])')-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        else
+                            PassiveM_ankle_flx=-Kstiff_unsci(3,1:3)*(QsQdots_col{i}((k-1)*d+j,[1 7 9])'-theta0_unsci)-Ddamp_unsci(3,1:3)*QsQdots_col{i}((k-1)*d+j,[2 8 10])';
+                        end
                     else
-                        PassiveM_ankle_flx=-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9)-theta0_unsc((Itrial4passprop-1)*3+3))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        if Options.useRestingMoments
+                            PassiveM_ankle_flx=K0_unsci(3)-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        else
+                            PassiveM_ankle_flx=-Kstiff_unsc((Itrial4passprop-1)*3+3)*(QsQdots_col{i}((k-1)*d+j,9)-theta0_unsc((Itrial4passprop-1)*3+3))-Ddamp_unsc((Itrial4passprop-1)*3+3)*QsQdots_col{i}((k-1)*d+j,10);
+                        end
                     end
                     if Options.optInertiapassiveParam
                         PassiveM_ankle_flx=PassiveM_ankle_flx-InertiapassiveParam_unsc((Itrial4passprop-1)*3+3)*Qd2dot_col{i}((k-1)*d+j,5);
@@ -1019,7 +1182,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_flx=0;
                 end
-                f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,12));
+                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5)];
+                else
+                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                end
             end
 
             %ankle adduction
@@ -1048,7 +1216,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_add=0;
                 end
-                f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,13));
+                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5)];
+                else
+                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                end
             end
 
             %ankle rotation
@@ -1077,7 +1250,12 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_int=0;
                 end
-                f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                if Options.normalizeCostFunction
+                    vari=var(ref_solution.sol_val.out{i}(:,14));
+                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5)];
+                else
+                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                end
             end
 
             if Options.optimizeMuscleProp
@@ -1102,18 +1280,28 @@ end
 function  expdata=LoadData(N,d,tau_root,main_folder)
     current_folder=pwd;
     kinfiles=dir([main_folder '/kinematics/' '/*.mot']);
+    names = {kinfiles.name};
+    nums = str2double(regexprep(names, '^kinematics_(\d+)_.*$', '$1'));
+    [~, order] = sort(nums, 'ascend');
+    kinfiles = kinfiles(order);
+
     if contains(main_folder,'nokneemarker')||contains(main_folder,'August2025')
         kinfiles=kinfiles(contains({kinfiles.name}, '_2D'));
     else
         kinfiles=kinfiles(~contains({kinfiles.name}, '_2Dangles'));
     end
     forcefiles=dir([main_folder '/perturbation/' '/*.mot']);
+    names = {forcefiles.name};
+    nums = str2double(regexprep(names, '^motor_(\d+)_.*$', '$1'));
+    [~, order] = sort(nums, 'ascend');
+    forcefiles = forcefiles(order);
+
         for i=1:length(kinfiles);
            kinfilename=kinfiles(i).name; 
            kindata=importdata([kinfiles(i).folder '/' kinfiles(i).name]);
            if strcmp(main_folder,'DataSeptember')
             trial_name=[strrep(kinfilename,'.mot','')];
-           elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')||contains(main_folder,'August2025')||contains(main_folder,'Datarat25')||contains(main_folder,'Datarat23')
+           elseif strcmp(main_folder,'DataNovember')||strcmp(main_folder,'DataDecember')||contains(main_folder,'DataMarch2025')||contains(main_folder,'DataMay2025')||contains(main_folder,'August2025')||contains(main_folder,'Datarat25')||contains(main_folder,'Datarat23')||contains(main_folder,'Datarat22')
                 trial_name=[strrep(strrep(kinfilename,'.mot',''),'.','_')];
                 trial_name=[strrep(trial_name,'-','m')];
            else
