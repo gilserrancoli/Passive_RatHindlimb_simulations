@@ -31,12 +31,16 @@ Options.optimizePassiveJointEl=1;
 Options.individualpassiveprop=0;
 
 Options.removefirstpertRat22=1;
-Options.normalizeCostFunction=1;
+Options.normalizeCostFunction=0;
 
 Options.secondfolder=1;
-main_folder='Datarat21 - DataMay2025\baseline_ForwardOnly\';
-main_folder2='Datarat21 - DataMay2025\baseline_BackwardOnly\';
-ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat21baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+main_folder='Datarat23\anklecut_forward\';
+main_folder2='Datarat23\anklecut_backward\';
+if Options.normalizeCostFunction
+    ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat21achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+else
+    ref_solution=[];
+end
 
 %% 
 N=40; %just used to discretize data
@@ -431,11 +435,10 @@ if Options.optimizePassiveJointEl
     varnames=[varnames; repmat({'Ds'},ntrials4passprop*nvar_passparam,1)];
 
     if Options.useRestingMoments
-        nvar_passparam=length(guess.K0);
         x0=[x0; repmat(guess.K0,ntrials4passprop,1)];
         lb=[lb; repmat(bounds.K0.lower,ntrials4passprop,1)];
         ub=[ub; repmat(bounds.K0.upper,ntrials4passprop,1)];
-        varnames=[varnames; repmat({'K0s'},ntrials4passprop*nvar_passparam,1)];
+        varnames=[varnames; repmat({'K0s'},ntrials4passprop*3,1)];
     else
         x0=[x0; repmat(guess.theta0,ntrials4passprop,1)];
         lb=[lb; repmat(bounds.theta0.lower,ntrials4passprop,1)];
@@ -487,7 +490,7 @@ if Options.optimizePassiveJointEl
     Kstiff_unsc=Kstiff*scaling.Kstiff;
     Ddamp_unsc=Ddamp*scaling.Ddamp;
     if Options.useRestingMoments
-        K0_unsc=K0_unsc*scaling.Kstiff;
+        K0_unsc=K0*scaling.Kstiff;
     else
         theta0_unsc=theta0*scaling.theta;
     end
