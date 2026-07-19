@@ -34,13 +34,14 @@ Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
 
 Options.secondfolder=1;
-main_folder='Datarat23\baseline_forward\';
-main_folder2='Datarat23\baseline_backward\';
+main_folder='Datarat25\baseline_forward_2mm\';
+main_folder2='Datarat25\baseline_backward_2mm\';
 if Options.normalizeCostFunction
-    ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat23baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
+Options.main_folder=main_folder;
 
 %% 
 N=40; %just used to discretize data
@@ -49,6 +50,7 @@ d=3;
 Options.N=N;
 Options.d=d;
 
+% Load expdata in .mot
 % trials={'h8'};
 % expdata=LoadData_May(N,d,tau_root,trials);
 expdata=LoadData(N,d,tau_root,main_folder);
@@ -67,6 +69,30 @@ if Options.removefirstpertRat22
     expdata=rmfield(expdata,fieldnames_struct(I));
 end
 
+%% load .trc files
+current_folder=pwd;
+cd([main_folder '\kinematics']);
+names_trc=dir('*.trc');
+for i=1:length(names_trc)
+    name_trc=strrep(names_trc(i).name,'-','m');
+    name_trc=strrep(name_trc,'.trc','');
+    name_trc=strrep(name_trc,'.','_');
+    all_trc_data.(name_trc)=readtable(names_trc(i).name,'FileType','text');
+end
+cd(current_folder);
+cd([main_folder2 '\kinematics']);
+if Options.secondfolder==1;
+    names_trc=dir('*.trc');
+    for i=1:length(names_trc)
+        name_trc=strrep(names_trc(i).name,'-','m');
+        name_trc=strrep(name_trc,'.trc','');
+        name_trc=strrep(name_trc,'.','_');
+        all_trc_data.([name_trc '_back'])=readtable(names_trc(i).name,'FileType','text');
+    end
+end
+cd(current_folder);
+
+% Prepare muscle-related data
 current_folder=pwd;
 if Options.optimizeMuscleProp
     nmuscles=38;
@@ -309,7 +335,8 @@ if Options.orderPassiveJoint==1
 end
 bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9 -0.001]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 bounds.inertiaParam.upper=[0.025 1.e-5 -0.005 0.015 1e-6 0.020 0.0050 1e-7      0]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
-
+bounds.hip_ankleqs.lower=[-10;  -20]*pi/180;
+bounds.hip_ankleqs.upper=[ 10;   20]*pi/180;
 
 %% Define guesses
 if Options.optimizeMuscleProp
@@ -363,6 +390,9 @@ else
     guess.theta0=guess_theta0(find(Options.dofs_to_track)); %take only the dofs that are tracked
 end
 guess.inertiaParam=[0.01351 1.086e-06 -0.014936 0.00538 8.204e-07 0.0152275 0.00193 3.727e-08 -0.00546174]./scaling.inertiaparam;
+guess.hip_ankleqs=[0;0]; %hip add hip rot ankle rot
+
+
 
 %% Start with an empty optimization
 x0=[];
@@ -469,13 +499,20 @@ if Options.optimizePassiveJointEl
 
 end
 
+x0=[x0; guess.hip_ankleqs];
+lb=[lb; bounds.hip_ankleqs.lower];
+ub=[ub; bounds.hip_ankleqs.upper];
+varnames=[varnames; repmat({'hip_ankle_qs'},length(guess.hip_ankleqs),1)];
+
 A=[];
 b=[];
 Aeq=[];
 beq=[];
 options=optimset('Display','iter');
 options.MaxFunEvals =5e4;
-[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+fprintf('Start optimization');
+[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+fprintf('Optimization finished');
 
 if Options.optInertiaParam
     I=contains(varnames,'inertiaParam');
@@ -515,7 +552,8 @@ if Options.optimizePassiveJointEl
         InertiapassiveParam_unsc=InertiapassiveParam*scaling.Inertiapassparam;
     end
 end
-
+I=contains(varnames,'hip_ankle_qs');
+hip_ankle_qs=x(I);
 
 nametrials=fieldnames(expdata);
 t_col_grid=1:N*(d+1);
@@ -874,7 +912,7 @@ sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 
 
 
-function f=costfun(x,guess,varnames,Options,expdata,F,ref_solution)
+function f=costfun(x,guess,varnames,Options,expdata,F,ref_solution,all_trc_data)
 f=[];
 
 ndofs=7;
@@ -944,18 +982,27 @@ if Options.optimizePassiveJointEl
         InertiapassiveParam_unsc=InertiapassiveParam*scaling.Inertiapassparam;
     end
 end
-
+I=contains(varnames,'hip_ankle_qs');
+hip_ankle_qs=x(I);
+f=[f; hip_ankle_qs];
 
 nametrials=fieldnames(expdata);
+trc_nametrials=fieldnames(all_trc_data);
 for i=1:size(nametrials,1)
+    trc_data=all_trc_data.(strrep(nametrials{i},'_2D',''));
+    [QsQdots_new,Qd2dots_new]=ComputeIK(expdata.(nametrials{i}).q,hip_ankle_qs,trc_data,Options,nametrials{i},expdata.(nametrials{i}).q(:,1));
     QsQdot_prescribed{i}(:,1:2:7*2)=expdata.(nametrials{i}).q(:,2:8); %pelvis dofs and sacroiliac_flx are prescribed
     QsQdot_prescribed{i}(:,2:2:7*2)=expdata.(nametrials{i}).qdot(:,2:8);
     Qd2dot_prescribed{i}=expdata.(nametrials{i}).qd2dot(:,2:8);
-    QsQdots{i}(:,1:2:ndofs*2)=expdata.(nametrials{i}).q(1:(d+1):end,9:15);
-    QsQdots_col{i}(:,1:2:ndofs*2)=expdata.(nametrials{i}).q(t_col_grid,9:15);
-    QsQdots{i}(:,2:2:ndofs*2)=expdata.(nametrials{i}).qdot(1:(d+1):end,9:15);
-    QsQdots_col{i}(:,2:2:ndofs*2)=expdata.(nametrials{i}).qdot(t_col_grid,9:15);
-    Qd2dot_col{i}=expdata.(nametrials{i}).qd2dot(t_col_grid,9:15);
+
+    % QsQdots{i}(:,1:2:ndofs*2)=expdata.(nametrials{i}).q(1:(d+1):end,9:15);
+    % QsQdots_col{i}(:,1:2:ndofs*2)=expdata.(nametrials{i}).q(t_col_grid,9:15); 
+    % QsQdots{i}(:,2:2:ndofs*2)=expdata.(nametrials{i}).qdot(1:(d+1):end,9:15);
+    % QsQdots_col{i}(:,2:2:ndofs*2)=expdata.(nametrials{i}).qdot(t_col_grid,9:15);
+    % Qd2dot_col{i}=expdata.(nametrials{i}).qd2dot(t_col_grid,9:15);
+    QsQdots{i}=QsQdots_new(1:(d+1):end,:);
+    QsQdots_col{i}=QsQdots_new(t_col_grid,:);
+    Qd2dot_col{i}=Qd2dots_new(t_col_grid,:);
     forces_prescribed{i}=expdata.(nametrials{i}).f(t_col_grid,2:end);
 
     if Options.optimizeMuscleProp
@@ -1437,4 +1484,425 @@ function [c,ceq]=nonlcon(x,varnames,Options)
 
     
 
+end
+
+
+function [QsQdots,Qd2dots]=ComputeIK(expdata_q,hip_ankle_qs,trc_data,Options,nametrial,t)
+
+    if contains(Options.main_folder,'DataMay2025') %rat 21
+        load('MeanPelvisData_May2025.mat');
+        lfemur=38; %mm
+        ltibia=42; %mm
+    elseif contains(Options.main_folder,'rat22') %rat 22
+        load('MeanPelvisData_Rat22.mat');
+        lfemur=36; %mm
+        ltibia=43; %mm
+    elseif contains(Options.main_folder,'rat23')
+        load('MeanPelvisData_Rat23.mat');
+        lfemur=36; %mm
+        ltibia=45; %mm
+    elseif contains(Options.main_folder,'August2025') %rat24
+        load('MeanPelvisData_August2025');
+        lfemur=38; %mm
+        ltibia=42; %mm
+    elseif contains(Options.main_folder,'rat25')
+        load('MeanPelvisData_Rat25.mat');
+        lfemur=36; %mm
+        ltibia=46; %mm
+    end
+    
+    %Obtain the number of perturbation
+    strpos=strfind(nametrial,'pos');
+    if nametrial(strpos+3)=='-'
+        pert=nametrial(strpos+3:strpos+5);
+    else
+        pert=nametrial(strpos+3:strpos+4);
+    end
+    pert=strrep(pert,'_','');
+    found=false;
+    p=1;
+    try
+        while (p<=length(mdata_bypert))&(~found)
+            found=str2num(pert)==mdata_bypert(p).perts;
+            if found
+                continue;
+            end
+            p=p+1;
+        end
+    catch
+        keyboard;
+    end
+
+    I_ankle=find(contains(trc_data.Properties.VariableNames,'ankle'));
+    I_mtp=find(contains(trc_data.Properties.VariableNames,'mtp'));
+    I_toe=find(contains(trc_data.Properties.VariableNames,'toe'));
+
+    nf=size(trc_data,1)-1;
+    %position hip and ankle markers
+    pos_pelvis_top=repmat(mdata_bypert(p).pelvis_top,nf,1);
+    pos_pelvis_bottom=repmat(mdata_bypert(p).pelvis_bottom,nf,1);
+    pos_hip=repmat(mdata_bypert(p).hip,nf,1);
+    % pos_ankle_0=table2array(trc_data(2:end,I_ankle:(I_ankle+2)));
+    pos_ankle_0i=mdata_bypert(p).ankle;
+    pos_mtp_0i=mdata_bypert(p).mtp;
+    pos_toe_0i=mdata_bypert(p).toe;
+    [R_spine_ground, R_pelvis_ground, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip,Options.main_folder);
+
+    q.data(:,1)=0:0.0001:0.08;
+    q.data(:,2:4)=repmat(spine_euler,size(q.data,1),1);
+    q.data(:,5:7)=repmat(t_spine',size(q.data,1),1);
+    q.data(:,8)=3.7;
+
+    %create new ankle, mtp and toe positions
+    path_split=split(Options.main_folder,'\');
+    prefix=path_split{2};
+    if contains(lower(prefix),'forward')
+        perturbation_in=mdata_bypert(p).pert_forward;
+    elseif contains(lower(prefix),'backward')
+        perturbation_in=mdata_bypert(p).pert_backward;
+    else
+        keyboard;
+    end
+    v_ankle=mdata_bypert(p).v_ankle;
+
+    if v_ankle(1)<0
+        pos_ankle=pos_ankle_0i(1,:)-(perturbation_in-perturbation_in(1))*v_ankle';
+    else
+        pos_ankle=pos_ankle_0i(1,:)+(perturbation_in-perturbation_in(1))*v_ankle';
+    end
+
+    v_mtp=mdata_bypert(p).v_mtp;
+    if v_mtp(1)<0
+        pos_mtp=pos_mtp_0i(1,:)-(perturbation_in-perturbation_in(1))*v_mtp';
+    else
+        pos_mtp=pos_mtp_0i(1,:)+(perturbation_in-perturbation_in(1))*v_mtp';
+    end
+
+    v_toe=mdata_bypert(p).v_toe;
+    if v_toe(1)<0
+        pos_toe=pos_toe_0i(1,:)-(perturbation_in-perturbation_in(1))*v_toe';
+    else
+        pos_toe=pos_toe_0i(1,:)+(perturbation_in-perturbation_in(1))*v_toe';
+    end
+
+    for i=1:nf
+        [hip_flexion(i,:), hip_introtation(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia);
+
+        knee_angle_deg(i,:) = -computeKneeAngle(pos_hip(i,:), pos_knee(i,:), pos_ankle(i,:));
+        
+        ankle_flexion(i,:) = computeAnkleFlexionAngle(hip_ankle_qs, pos_hip(i,:), pos_knee(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), pos_toe(i,:),Z_femur(i,:));
+
+    end
+
+    q.data(:,1)=0:0.0001:0.08;
+    % q.data(:,2:4)=repmat(spine_euler,size(q.data,1),1);
+    % q.data(:,5:7)=repmat(t_spine',size(q.data,1),1);
+    % q.data(:,8)=3.7;
+    % q.data(:,2:8)=expdata_q(:,2:8);
+    % q.data(:,[9:15])=[hip_flexion repmat(hip_ankle_qs(1)*pi/180,size(q.data,1),1) hip_introtation*pi/180 knee_angle_deg ankle_flexion repmat([0 hip_ankle_qs(2)]*pi/180,size(q.data,1),1)];
+
+    new_qs=[hip_flexion*pi/180 repmat(hip_ankle_qs(1),size(q.data,1),1) hip_introtation*pi/180 knee_angle_deg*pi/180 ankle_flexion*pi/180 repmat([0 hip_ankle_qs(2)],size(q.data,1),1)];
+
+    time_trc=table2array(trc_data(2:end,2));
+    [B,A]=butter(3,100/(5000/2));
+    % smoothed_filt_kin=filtfilt(B,A,new_qs);
+   for j=1:size(new_qs,2)
+        % intdata=interp1(time_trc(:,1),new_qs(:,j),t,'spline');      
+
+        kindata_spline(j)=spline(time_trc,new_qs(:,j));
+
+        new_qs2.kinematics(:,j)=ppval(kindata_spline(j),t);
+        new_qs2.kinematics_v(:,j)=ppval(fnder(kindata_spline(j),1),t);
+        new_qs2.kinematics_a(:,j)=ppval(fnder(kindata_spline(j),2),t);
+   end
+
+
+    QsQdots=zeros(size(new_qs2.kinematics,1),size(new_qs2.kinematics,2)*2);
+    QsQdots(:,1:2:end)=new_qs2.kinematics;
+    QsQdots(:,2:2:end)=new_qs2.kinematics_v;
+    Qd2dots=new_qs2.kinematics_a;
+end
+
+function [R_spine_ground, R_pelvis, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip,in_folder)
+
+    x_pelvis=pos_pelvis_top-pos_pelvis_bottom;
+    x_pelvis=x_pelvis./sqrt(sum(x_pelvis.^2,2));
+
+    vert_ground=[0 0 1];
+
+    z_pelvis=cross(x_pelvis,repmat(vert_ground,size(x_pelvis,1),1));
+    z_pelvis=z_pelvis./sqrt(sum(z_pelvis.^2,2));
+    
+    y_pelvis=cross(z_pelvis,x_pelvis);
+    y_pelvis=y_pelvis./sqrt(sum(y_pelvis.^2,2));
+    
+R_pelvis=[x_pelvis(1,:)' y_pelvis(1,:)' z_pelvis(1,:)'];
+
+R_sacroiliac=eul2rotm([3.7*pi/180,0,0],'ZXY');
+if contains(in_folder,'May2025') %rat21
+    pos_hip_in_pelvis_frame=[0 0 0.007]';
+    t_sacroiliac=[0.00428703 -0.00257222 0.00857407]';
+elseif contains(in_folder,'rat22')
+    pos_hip_in_pelvis_frame=[0 0 0.007]';
+    t_sacroiliac=[0.00465216 -0.0027913 0.00930433]';
+elseif contains(in_folder,'rat23')
+    pos_hip_in_pelvis_frame=[0 0 0.007]';
+    t_sacroiliac=[0.00370292 -0.00222175 0.00740585]';
+elseif contains(in_folder,'August2025') %rat24
+    pos_hip_in_pelvis_frame=[0 0 0.00491681]';
+    t_sacroiliac=[0.00409734 -0.0024584 0.00819468]';
+elseif contains(in_folder,'rat25')
+    pos_hip_in_pelvis_frame=[0 0 0.007]';
+    t_sacroiliac=[0.00383521 -0.00230112 0.00767041]';
+else
+    keyboard;
+end
+R_spine_ground=R_pelvis*R_sacroiliac';
+
+t_hip=pos_hip(1,:)'/1000-R_pelvis*pos_hip_in_pelvis_frame;
+t_spine=t_hip-R_spine_ground*t_sacroiliac;
+
+spine_euler=rotm2eul(R_spine_ground,'ZXY')*180/pi;
+
+
+end
+
+
+function [hip_flexion, hip_introtation, pos_knee, Z_femur] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip, pos_pelvis_bottom, pos_pelvis_top, pos_ankle, pos_ankle_1, pos_ankle_end, lfemur, ltibia);
+
+% Hip-to-knee direction in the femur local frame.
+    femurLocalAxis = [0; -1; 0];
+
+hipAnkleDistance=norm(pos_ankle-pos_hip);
+if hipAnkleDistance>lfemur+ltibia ||...
+        hipAnkleDistance< abs(lfemur-ltibia)
+    error('The measured ankle position is unreachable.');
+end
+
+hipAdduction=hip_ankle_qs(1);
+
+initialFlexion=30*pi/180;
+initialInternalRotation=0;
+
+residualFunction = @(q) reconstructionResiduals( ...
+        q, pos_hip, pos_ankle, lfemur, ltibia, ...
+        R_pelvis_ground, hipAdduction, femurLocalAxis);
+
+options = optimoptions( ...
+    'fsolve', ...
+    'Display', 'off', ...
+    'FunctionTolerance', 1e-12, ...
+    'StepTolerance', 1e-12, ...
+    'OptimalityTolerance', 1e-12);
+
+initialGuess = [ ...
+        initialFlexion;
+        initialInternalRotation];
+
+[solution, residualVector, exitflag, solverOutput] = ...
+    fsolve(residualFunction, initialGuess, options);
+
+if exitflag <= 0
+    warning(['The hip reconstruction solver did not converge. ', ...
+             'Exit flag: %d'], exitflag);
+end
+
+hipFlexionRad = solution(1);
+hipInternalRotationRad = solution(2);
+
+femurRotation = buildFemurRotation( ...
+    R_pelvis_ground, hipFlexionRad, hipAdduction, hipInternalRotationRad);
+
+pos_knee = pos_hip' ...
+    + lfemur * femurRotation * femurLocalAxis;
+
+residual = norm(pos_ankle' - pos_knee) - ltibia;
+
+Z_femur=femurRotation(:,3);
+
+hip_flexion=rad2deg(hipFlexionRad);
+hip_introtation=rad2deg(hipInternalRotationRad);
+
+end
+
+
+function value = tibiaConstraint( ...
+    hipFlexion, hipPosition, anklePosition, ...
+    femurLength, tibiaLength, pelvisRotation, ...
+    hipAdduction, hipInternalRotation, femurLocalAxis)
+
+    femurRotation = buildFemurRotation( ...
+        pelvisRotation, hipFlexion, hipAdduction, ...
+        hipInternalRotation);
+
+    kneePosition = hipPosition' ...
+        + femurLength * femurRotation * femurLocalAxis;
+
+    value = norm(anklePosition' - kneePosition)^2 ...
+        - tibiaLength^2;
+end
+
+function R = buildFemurRotation( ...
+    pelvisRotation, hipFlexion, ...
+    hipAdduction, hipInternalRotation)
+%BUILDFEMURROTATION Femur-local frame to global frame.
+%
+% Convention:
+%   1. Flexion about the spine-fixed Z axis.
+%   2. Adduction about the rotated local X axis.
+%   3. Internal/external rotation about the femur-fixed local Y axis.
+%
+% Active rotations with column vectors:
+%
+%   R = R_spine * Rz(flexion) * Rx(adduction) * Ry(internalRotation)
+
+    R = pelvisRotation ...
+        * rotationZ(hipFlexion) ...
+        * rotationX(hipAdduction) ...
+        * rotationY(hipInternalRotation);
+end
+
+function R = rotationX(angle)
+%ROTATIONX Active right-handed rotation about X.
+
+    c = cos(angle);
+    s = sin(angle);
+
+    R = [1, 0,  0;
+         0, c, -s;
+         0, s,  c];
+end
+
+
+function R = rotationY(angle)
+%ROTATIONY Active right-handed rotation about Y.
+
+    c = cos(angle);
+    s = sin(angle);
+
+    R = [ c, 0, s;
+          0, 1, 0;
+         -s, 0, c];
+end
+
+
+function R = rotationZ(angle)
+%ROTATIONZ Active right-handed rotation about Z.
+
+    c = cos(angle);
+    s = sin(angle);
+
+    R = [c, -s, 0;
+         s,  c, 0;
+         0,  0, 1];
+end
+
+function ankle_flexion = computeAnkleFlexionAngle(hip_ankle_qs,pos_hip, pos_knee, pos_ankle, pos_ankle1, pos_ankle_end, P3, Z_femur)
+    % Inputs:
+    % Z_femur: global femur Z axis (shared with tibia and foot)
+
+    ankleIntRad = hip_ankle_qs(2);
+
+    %% Common Z axis
+    Z_common = Z_femur/norm(Z_femur);
+
+    %% 1. Tibia frame
+    Y_tibia = (pos_knee - pos_ankle) / norm(pos_knee - pos_ankle);
+    Z_tibia = Z_femur / norm(Z_femur);
+    X_tibia = cross(Y_tibia, Z_tibia);
+    X_tibia = X_tibia / norm(X_tibia);
+    R_tibia = [X_tibia(:), Y_tibia(:), Z_tibia(:)];
+
+    %% 2. Foot frame
+   
+    % Hip-knee-ankle plane
+    femurVector = pos_knee - pos_hip;
+    hipToAnkle  = pos_ankle - pos_hip;
+    planeNormal = cross(femurVector, hipToAnkle);
+    planeNormal = planeNormal/norm(planeNormal);
+    distanceToPlane = dot(P3 - pos_ankle, planeNormal);
+
+    footVector = pos_ankle_end - pos_ankle1;
+    footVectorProjected = footVector ...
+        - dot(footVector, planeNormal) * planeNormal;
+
+    %Compute X_foot, Y_foot and Z_foot
+    X_foot_tilde = footVectorProjected;
+    X_foot_tilde = X_foot_tilde / norm(X_foot_tilde);
+    
+    ankle_flexion_aux=acos(dot(X_foot_tilde,Y_tibia));
+
+    ankle_flexion = 2*pi/3 - ankle_flexion_aux; 
+
+    %Construct the complete relative rotation
+    % Adduction is explicitly zero.
+
+    ankleAdductionRad = 0;
+
+    R_relative = ...
+        rotationZ(ankle_flexion) ...
+        * rotationX(ankleAdductionRad) ...
+        * rotationY(ankleIntRad);
+
+    R_foot = R_tibia * R_relative;
+
+    X_foot = R_foot(:,1);
+    Y_foot = R_foot(:,2);
+    Z_foot = R_foot(:,3);
+
+    %% 3. Relative rotation and ZXY Euler angles
+    eulerZXY = rad2deg(rotm2eul(R_relative, 'ZXY'));  % MATLAB intrinsic ZXY
+    ankle_flexion=eulerZXY(1);
+
+end
+
+function knee_angle_deg = computeKneeAngle(P1, P4, P2)
+    % Inputs:
+    % P1 - Hip position [1x3]
+    % P4 - Knee position [1x3]
+    % P2 - Ankle position [1x3]
+
+    % Step 1: Define Y axes
+    Y_femur = (P1 - P4) / norm(P1 - P4);  % from knee to hip
+    Y_tibia = (P4 - P2) / norm(P4 - P2);  % from ankle to knee
+
+    % Step 2: Compute angle between Y axes
+    cos_theta = dot(Y_femur, Y_tibia);  % dot product
+    cos_theta = min(max(cos_theta, -1), 1);  % clamp for numerical safety
+    angle_rad = acos(cos_theta);  % angle in radians
+
+    % Step 3: Convert to degrees
+    knee_angle_deg = rad2deg(angle_rad);
+end
+
+function residuals = reconstructionResiduals( ...
+    q, pos_hip, pos_ankle, lfemur, ltibia, ...
+    R_pelvis_ground, hipAdduction, femurLocalAxis)
+
+    hipFlexion = q(1);
+    hipInternalRotation = q(2);
+
+    femurRotation = buildFemurRotation( ...
+        R_pelvis_ground, ...
+        hipFlexion, ...
+        hipAdduction, ...
+        hipInternalRotation);
+
+    pos_knee = pos_hip' ...
+        + lfemur * femurRotation * femurLocalAxis;
+
+    Z_femur = femurRotation(:,3);
+    Z_femur = Z_femur / norm(Z_femur);
+
+    tibiaVector = pos_ankle' - pos_knee;
+
+    % Constraint 1: correct tibia length.
+    lengthResidual = norm(tibiaVector) - ltibia;
+
+    % Constraint 2: tibia must be perpendicular to Z_femur.
+    planeResidual = dot(Z_femur, tibiaVector);
+
+    residuals = [ ...
+        lengthResidual;
+        planeResidual];
 end

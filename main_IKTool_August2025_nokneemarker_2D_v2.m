@@ -2,47 +2,78 @@
 clear all;
 close all;
 
+file_forlabels=importdata('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\DataAugust2025_usingIKOpenSim\baseline_forward_2mm\kinematics\kinematics_0_pos30.0.mot');
+
 filepath=fileparts(matlab.desktop.editor.getActiveFilename);
 cd(filepath);
-prefix='achillescut_ForwardOnly';
-in_folder=[filepath '\DataMay2025\' prefix '\kinematics'];
-in_folder_nokneemarker=[filepath '\DataMay2025\' prefix '_nokneemarker\kinematics'];
-in_folder_perturbation=[filepath '\DataMay2025\' prefix '_nokneemarker\perturbation'];
+prefix='baseline_forward_2mm';
+in_folder=[filepath '\DataAugust2025\' prefix '\kinematics'];
+in_folder_nokneemarker=[filepath '\DataAugust2025\' prefix '\kinematics'];
+in_folder_perturbation=[filepath '\DataAugust2025\' prefix '\perturbation'];
 
 lfemur=38; %mm
 ltibia=42; %mm
 
 path_Measurements=pwd;
+load('MeanPelvisData_August2025');
 
 cd(in_folder);
 movS=dir('*.trc');
 
+
 for j=1:length(movS)
     trc_data=readtable([in_folder '\' movS(j).name],'FileType','text');
     cd(in_folder_nokneemarker);
-    in_mot_data=importdata([strrep(movS(j).name,'.trc','.mot')]);
-    q.labels=in_mot_data.colheaders;
-    q.data(:,1)=in_mot_data.data(:,1);
-    q.data(:,2:7)=repmat(in_mot_data.data(1,2:7),size(q.data,1),1); %sacrum_data
-    q.data(:,8)=in_mot_data.data(:,8);
+
+    strpos=strfind(movS(j).name,'pos');
+    if movS(j).name(17)=='-'
+        pert=movS(j).name(17:19);
+    else
+        pert=movS(j).name(17:18);
+    end
+    found=false;
+    p=1;
+    while (p<=length(mdata_bypert))&&(~found)
+        found=str2num(pert)==mdata_bypert(p).perts;
+        if found
+            continue;
+        end
+        p=p+1;
+    end
+    % in_mot_data=importdata([strrep(movS(j).name,'.trc','.mot')]);
+    q.labels=file_forlabels.colheaders;
+    % q.data(:,1)=in_mot_data.data(:,1);
+    % q.data(:,2:7)=repmat(in_mot_data.data(1,2:7),size(q.data,1),1); %sacrum_data
+    % q.data(:,8)=in_mot_data.data(:,8);
+    % pelvis_euler=q.data(:,2:4);
 
     %index position of markers in the matrix
-    I_pelvis_top=find(contains(trc_data.Properties.VariableNames,'pelvis_top'));
-    I_pelvis_bottom=find(contains(trc_data.Properties.VariableNames,'pelvis_bottom'));
-    I_hip=find(contains(trc_data.Properties.VariableNames,'hip'));
+    % I_pelvis_top=find(contains(trc_data.Properties.VariableNames,'pelvis_top'));
+    % I_pelvis_bottom=find(contains(trc_data.Properties.VariableNames,'pelvis_bottom'));
+    % I_hip=find(contains(trc_data.Properties.VariableNames,'hip'));
     % I_knee=find(contains(trc_data.Properties.VariableNames,'knee'));
     I_ankle=find(contains(trc_data.Properties.VariableNames,'ankle'));
     I_mtp=find(contains(trc_data.Properties.VariableNames,'mtp'));
+    I_toe=find(contains(trc_data.Properties.VariableNames,'toe'));
 
     nf=size(trc_data,1)-1;
     %position hip and ankle markers
-    pos_pelvis_top=table2array(trc_data(2:end,I_pelvis_top:(I_pelvis_top+2)));
-    pos_pelvis_bottom=table2array( trc_data(2:end,I_pelvis_bottom:(I_pelvis_bottom+2)));
-    pos_hip=repmat(table2array(trc_data(2,I_hip:(I_hip+2))),nf,1);
+    pos_pelvis_top=repmat(mdata_bypert(p).pelvis_top,nf,1);
+    pos_pelvis_bottom=repmat(mdata_bypert(p).pelvis_bottom,nf,1);
+    pos_hip=repmat(mdata_bypert(p).hip,nf,1);
     pos_ankle_0=table2array(trc_data(2:end,I_ankle:(I_ankle+2)));
-    pos_mtp=table2array(trc_data(2:end,I_mtp:(I_mtp+2)));
+    pos_mtp_0=table2array(trc_data(2:end,I_mtp:(I_mtp+2)));
+    pos_toe_0=table2array(trc_data(2:end,I_toe:(I_toe+2)));
 
-    %create new ankle position
+    % Compute pelvis orientation and translation
+    [R_spine_ground, R_pelvis_ground, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip);
+
+    q.data(:,1)=0:0.0001:0.08;
+    q.data(:,2:4)=repmat(spine_euler,size(q.data,1),1);
+    q.data(:,5:7)=repmat(t_spine',size(q.data,1),1);
+    q.data(:,8)=3.7;
+
+    %create new ankle, mtp and toe positions
     perturbation=importdata([in_folder_perturbation '\' strrep(strrep(movS(j).name,'kinematics','motor'),'.trc','.csv')]);
     perturbation_name='filtered_position';
     Iperturbation=find(contains(perturbation.colheaders,perturbation_name));
@@ -56,13 +87,30 @@ for j=1:length(movS)
         pos_ankle=pos_ankle_0(1,:)+(perturbation_in-perturbation_in(1))*v_ankle';
     end
 
+    p_centered=pos_mtp_0-mean(pos_mtp_0,1);
+    [~,~,V]=svd(p_centered,'econ');
+    v_mtp=V(:,1);
+    if v_mtp(1)<0
+        pos_mtp=pos_mtp_0(1,:)-(perturbation_in-perturbation_in(1))*v_mtp';
+    else
+        pos_mtp=pos_mtp_0(1,:)+(perturbation_in-perturbation_in(1))*v_mtp';
+    end
+
+    p_centered=pos_toe_0-mean(pos_toe_0,1);
+    [~,~,V]=svd(p_centered,'econ');
+    v_toe=V(:,1);
+    if v_toe(1)<0
+        pos_toe=pos_toe_0(1,:)-(perturbation_in-perturbation_in(1))*v_toe';
+    else
+        pos_toe=pos_toe_0(1,:)+(perturbation_in-perturbation_in(1))*v_toe';
+    end
 
     for i=1:nf
-        [eulerZXY(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipEulerAnglesFromDistances(pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia);
+        [eulerZXY(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipEulerAnglesFromDistances(R_spine_ground, R_pelvis_ground, pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia);
 
         knee_angle_deg(i,:) = -computeKneeAngle(pos_hip(i,:), pos_knee(i,:), pos_ankle(i,:));
         
-        eulerZXY_ankle(i,:) = computeAnkleEulerAngles(pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_knee(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), pos_mtp(i,:),Z_femur(i,:));
+        eulerZXY_ankle(i,:) = computeAnkleEulerAngles(pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_knee(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), pos_toe(i,:),Z_femur(i,:));
     end
 
     q.data(:,9:11)=eulerZXY;
@@ -184,7 +232,7 @@ function eul_deg_hip = computeHipEulerZXY(P1, P1a, P1b, P4, P2)
 end
 
 
-function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(P1, P1a, P1b, P2, P2a, P2b, l1, l2)
+function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(R_spine_ground, R_pelvis_ground, P1, P1a, P1b, P2, P2a, P2b, l1, l2)
     % Step 1: Define the plane from P2a, P2b, P1
     plane_origin = P2a;
     v1 = P2b - P2a;
@@ -227,19 +275,23 @@ function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(P1
     end
 
     % Choose one candidate — e.g., the one with Z_femur aligned positively with Z_pelvis
-    [eulerZXY, ok, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, selectedP4);
+    [eulerZXY, ok, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, selectedP4', R_pelvis_ground);
 
 end
 
-function [thetaZXY, valid, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, P4)
+function [thetaZXY, valid, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, P4, R_pelvis_ground)
     
     P4=P4(:)';
     valid = true;
 
-    X_pelvis = (P1b - P1) / norm(P1b - P1);
-    Z_pelvis = cross(P1b - P1a, P1 - P1a); Z_pelvis = Z_pelvis / norm(Z_pelvis);
-    Y_pelvis = cross(Z_pelvis, X_pelvis); Y_pelvis = Y_pelvis / norm(Y_pelvis);
-    R_pelvis = [X_pelvis(:), Y_pelvis(:), Z_pelvis(:)];
+    %wrong way, not accurate, better to take the orientation from IK
+    % X_pelvis = (P1b - P1) / norm(P1b - P1);
+    % Z_pelvis = cross(P1b - P1a, P1 - P1a); Z_pelvis = Z_pelvis / norm(Z_pelvis);
+    % Y_pelvis = cross(Z_pelvis, X_pelvis); Y_pelvis = Y_pelvis / norm(Y_pelvis);
+    % R_pelvis = [X_pelvis(:), Y_pelvis(:), Z_pelvis(:)];
+    % R_pelvis=eul2rotm(pelvis_euler*pi/180,'ZXY');
+    R_pelvis=R_pelvis_ground;
+    Z_pelvis=R_pelvis(:,3);
 
     Y_femur = (P1 - P4) / norm(P1 - P4);
     Z_femur = cross(P2a - P1, P2b - P1);
@@ -305,7 +357,7 @@ function eulerZXY = computeAnkleEulerAngles(P1, P1a, P1b, P4, P2, P2a, P2b, P3, 
     % - P1a, P1b: define plane with P2 and P4
     % - P4: toe (world)
     % - P2: ankle (world)
-    % - P3_local: MTP in foot local frame
+    % - P3_local: toe in foot local frame
     % Z_femur: global femur Z axis (shared with tibia and foot)
 
     %% 1. Tibia frame
@@ -361,4 +413,37 @@ function R = R_from_axes(Z_axis, P1a, P1b, P2, P4)
     Y = cross(Z, X);
 
     R = [X(:), Y(:), Z(:)];
+end
+
+function [R_spine_ground, R_pelvis, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip);
+
+x_pelvis=pos_pelvis_top-pos_pelvis_bottom;
+x_pelvis=x_pelvis./sqrt(sum(x_pelvis.^2,2));
+
+r_hip_pelvistop=pos_pelvis_top-pos_hip;
+r_hip_pelvisbottom=pos_pelvis_bottom-pos_hip;
+y_pelvis_aux=cross(r_hip_pelvistop,r_hip_pelvisbottom);
+y_pelvis_aux=y_pelvis_aux./sqrt(sum(y_pelvis_aux.^2,2));
+
+z_pelvis=cross(x_pelvis,y_pelvis_aux);
+z_pelvis=z_pelvis./sqrt(sum(z_pelvis.^2,2));
+
+y_pelvis=cross(z_pelvis,x_pelvis);
+
+pos_hip_in_pelvis_frame=[0 0 0.00491681]';
+
+R_pelvis=[x_pelvis(1,:)' y_pelvis(1,:)' z_pelvis(1,:)'];
+
+
+R_sacroiliac=eul2rotm([3.7*pi/180,0,0],'ZXY');
+t_sacroiliac=[0.00409734 -0.0024584 0.00819468]';
+
+R_spine_ground=R_pelvis*R_sacroiliac';
+
+t_hip=pos_hip(1,:)'/1000-R_pelvis*pos_hip_in_pelvis_frame;
+t_spine=t_hip-R_spine_ground*t_sacroiliac;
+
+spine_euler=rotm2eul(R_spine_ground,'ZXY')*180/pi;
+
+
 end

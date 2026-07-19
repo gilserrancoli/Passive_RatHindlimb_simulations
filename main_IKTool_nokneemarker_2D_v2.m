@@ -4,7 +4,7 @@ close all;
 
 filepath=fileparts(matlab.desktop.editor.getActiveFilename);
 cd(filepath);
-prefix='baseline';
+prefix='anklecut_backward';
 main_folder='Datarat22\';
 in_folder=[filepath '\' main_folder '\' prefix '\kinematics'];
 in_folder_nokneemarker=[filepath '\' main_folder '\' prefix '\kinematics'];
@@ -36,7 +36,10 @@ end
 
 cd(in_folder);
 movS=dir('*.trc');
-
+names = {movS.name};
+nums = str2double(regexprep(names, '^kinematics_(\d+)_.*$', '$1'));
+[~, order] = sort(nums, 'ascend');
+movS = movS(order);
 
 for j=1:length(movS)
     trc_data=readtable([in_folder '\' movS(j).name],'FileType','text');
@@ -82,9 +85,12 @@ for j=1:length(movS)
     pos_pelvis_top=repmat(mdata_bypert(p).pelvis_top,nf,1);
     pos_pelvis_bottom=repmat(mdata_bypert(p).pelvis_bottom,nf,1);
     pos_hip=repmat(mdata_bypert(p).hip,nf,1);
-    pos_ankle_0=table2array(trc_data(2:end,I_ankle:(I_ankle+2)));
-    pos_mtp_0=table2array(trc_data(2:end,I_mtp:(I_mtp+2)));
-    pos_toe_0=table2array(trc_data(2:end,I_toe:(I_toe+2)));
+    % pos_ankle_0=table2array(trc_data(2:end,I_ankle:(I_ankle+2)));
+    pos_ankle_0i=mdata_bypert(p).ankle;
+    pos_mtp_0i=mdata_bypert(p).mtp;
+    pos_toe_0i=mdata_bypert(p).toe;
+    % pos_mtp_0=table2array(trc_data(2:end,I_mtp:(I_mtp+2)));
+    % pos_toe_0=table2array(trc_data(2:end,I_toe:(I_toe+2)));
 
     % Compute pelvis orientation and translation
     [R_spine_ground, R_pelvis_ground, t_spine, spine_euler]=ComputePelvisConf(pos_pelvis_top,pos_pelvis_bottom,pos_hip,in_folder);
@@ -95,35 +101,47 @@ for j=1:length(movS)
     q.data(:,8)=3.7;
 
     %create new ankle, mtp and toe positions
-    perturbation=importdata([in_folder_perturbation '\' strrep(strrep(movS(j).name,'kinematics','motor'),'.trc','.csv')]);
-    perturbation_name='filtered_position';
-    Iperturbation=find(contains(perturbation.colheaders,perturbation_name));
-    perturbation_in=perturbation.data(:,Iperturbation);
-    p_centered=pos_ankle_0-mean(pos_ankle_0,1);
-    [~,~,V]=svd(p_centered,'econ');
-    v_ankle=V(:,1);
+    % perturbation=importdata([in_folder_perturbation '\' strrep(strrep(movS(j).name,'kinematics','motor'),'.trc','.csv')]);
+    % perturbation_name='filtered_position';
+    % Iperturbation=find(contains(perturbation.colheaders,perturbation_name));
+    % perturbation_in=perturbation.data(:,Iperturbation);
+    % p_centered=pos_ankle_0-mean(pos_ankle_0,1);
+    % [~,~,V]=svd(p_centered,'econ');
+    % v_ankle=V(:,1);
+    if contains(lower(prefix),'forward')
+        perturbation_in=mdata_bypert(p).pert_forward;
+    elseif contains(lower(prefix),'backward')
+        perturbation_in=mdata_bypert(p).pert_backward;
+    else
+        keyboard;
+    end
+    v_ankle=mdata_bypert(p).v_ankle;
+    
     if v_ankle(1)<0
-        pos_ankle=pos_ankle_0(1,:)-(perturbation_in-perturbation_in(1))*v_ankle';
+        pos_ankle=pos_ankle_0i(1,:)-(perturbation_in-perturbation_in(1))*v_ankle';
     else
-        pos_ankle=pos_ankle_0(1,:)+(perturbation_in-perturbation_in(1))*v_ankle';
+        pos_ankle=pos_ankle_0i(1,:)+(perturbation_in-perturbation_in(1))*v_ankle';
     end
 
-    p_centered=pos_mtp_0-mean(pos_mtp_0,1);
-    [~,~,V]=svd(p_centered,'econ');
-    v_mtp=V(:,1);
+
+    % p_centered=pos_mtp_0i-mean(pos_mtp_0,1);
+    % [~,~,V]=svd(p_centered,'econ');
+    % v_mtp=V(:,1);
+    v_mtp=mdata_bypert(p).v_mtp;
     if v_mtp(1)<0
-        pos_mtp=pos_mtp_0(1,:)-(perturbation_in-perturbation_in(1))*v_mtp';
+        pos_mtp=pos_mtp_0i(1,:)-(perturbation_in-perturbation_in(1))*v_mtp';
     else
-        pos_mtp=pos_mtp_0(1,:)+(perturbation_in-perturbation_in(1))*v_mtp';
+        pos_mtp=pos_mtp_0i(1,:)+(perturbation_in-perturbation_in(1))*v_mtp';
     end
 
-    p_centered=pos_toe_0-mean(pos_toe_0,1);
-    [~,~,V]=svd(p_centered,'econ');
-    v_toe=V(:,1);
+    % p_centered=pos_toe_0-mean(pos_toe_0,1);
+    % [~,~,V]=svd(p_centered,'econ');
+    % v_toe=V(:,1);
+    v_toe=mdata_bypert(p).v_toe;
     if v_toe(1)<0
-        pos_toe=pos_toe_0(1,:)-(perturbation_in-perturbation_in(1))*v_toe';
+        pos_toe=pos_toe_0i(1,:)-(perturbation_in-perturbation_in(1))*v_toe';
     else
-        pos_toe=pos_toe_0(1,:)+(perturbation_in-perturbation_in(1))*v_toe';
+        pos_toe=pos_toe_0i(1,:)+(perturbation_in-perturbation_in(1))*v_toe';
     end
 
     for i=1:nf
@@ -141,6 +159,32 @@ for j=1:length(movS)
     write_motionFile(q,[in_folder_nokneemarker '\' strrep(movS(j).name,'.trc','_2D.mot')])
     
     fprintf(['processed ' movS(j).name '\n']);
+
+    data2(:,1)=q.data(:,1);
+    data2(:,2:4)=pos_pelvis_top;
+    data2(:,5:7)=pos_hip;
+    data2(:,8:10)=pos_pelvis_bottom;
+    data2(:,11:13)=pos_knee;
+    data2(:,14:16)=pos_ankle;
+    data2(:,17:19)=pos_mtp;
+    data2(:,20:22)=pos_toe;
+    headers2={'time','pelvis_top_x','pelvis_top_y','pelvis_top_z',...
+        'hip_x','hip_y','hip_z','pelvis_bottom_x','pelvis_bottom_y','pelvis_bottom_z',...
+        'knee_x','knee_y','knee_z','ankle_x','ankle_y','ankle_z',...
+        'mtp_x','mtp_y','mtp_z','toe_x','toe_y','toe_z'};
+    datatable=array2table(data2);
+    datatable.Properties.VariableNames=headers2;
+    writetable(datatable,[in_folder_nokneemarker '\' strrep(movS(j).name,'.trc','.xlsx')]);
+
+    data3=data2;
+    headers3=headers2;
+    for i=1:(length(headers2)-1)/3
+        data3(:,i*3)=-data3(:,i*3);
+    end
+    datatable3=array2table(data3);
+    datatable3.Properties.VariableNames=headers3;
+    writetable(datatable3,[in_folder_nokneemarker '\left_' strrep(movS(j).name,'.trc','.xlsx')]);
+
 end
 
 
@@ -286,13 +330,18 @@ function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(R_
     P4a = T_world([P4a_2d 0]);
     P4b = T_world([P4b_2d 0]);
     
-    if P4a(1) > P2(1)
-        selectedP4 = P4a;
-    elseif P4b(1) > P2(1)
-        selectedP4 = P4b;
-    else
-        warning('Neither P4 candidate has x > P2.x. Defaulting to P4a.');
-        selectedP4 = P4a;
+    % if P4a(1) > P2(1)
+    %     selectedP4 = P4a;
+    % elseif P4b(1) > P2(1)
+    %     selectedP4 = P4b;
+    % else
+    %     warning('Neither P4 candidate has x > P2.x. Defaulting to P4a.');
+    %     selectedP4 = P4a;
+    % end
+    if P4a(1)> P4b(1)
+        selectedP4=P4a;
+    elseif P4a(1)<=P4b(1)
+        selectedP4=P4b;
     end
 
     % Choose one candidate — e.g., the one with Z_femur aligned positively with Z_pelvis
@@ -452,7 +501,7 @@ function [R_spine_ground, R_pelvis, t_spine, spine_euler]=ComputePelvisConf(pos_
 R_pelvis=[x_pelvis(1,:)' y_pelvis(1,:)' z_pelvis(1,:)'];
 
 R_sacroiliac=eul2rotm([3.7*pi/180,0,0],'ZXY');
-if contains(in_folder,'May2025')
+if contains(in_folder,'May2025') %rat21
     pos_hip_in_pelvis_frame=[0 0 0.007]';
     t_sacroiliac=[0.00428703 -0.00257222 0.00857407]';
 elseif contains(in_folder,'rat22')
@@ -461,7 +510,7 @@ elseif contains(in_folder,'rat22')
 elseif contains(in_folder,'rat23')
     pos_hip_in_pelvis_frame=[0 0 0.007]';
     t_sacroiliac=[0.00370292 -0.00222175 0.00740585]';
-elseif contains(in_folder,'August2025')
+elseif contains(in_folder,'August2025') %rat24
     pos_hip_in_pelvis_frame=[0 0 0.00491681]';
     t_sacroiliac=[0.00409734 -0.0024584 0.00819468]';
 elseif contains(in_folder,'rat25')

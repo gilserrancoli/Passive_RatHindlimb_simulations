@@ -4,10 +4,10 @@ close all;
 
 filepath=fileparts(matlab.desktop.editor.getActiveFilename);
 cd(filepath);
-prefix='achillescut_ForwardOnly';
-in_folder=[filepath '\DataMay2025\' prefix '\kinematics'];
-in_folder_nokneemarker=[filepath '\DataMay2025\' prefix '_nokneemarker\kinematics'];
-in_folder_perturbation=[filepath '\DataMay2025\' prefix '_nokneemarker\perturbation'];
+prefix='anklecut_forward_2mm';
+in_folder=[filepath '\DataAugust2025\' prefix '\kinematics'];
+in_folder_nokneemarker=[filepath '\DataAugust2025\' prefix '\kinematics'];
+in_folder_perturbation=[filepath '\DataAugust2025\' prefix '\perturbation'];
 
 lfemur=38; %mm
 ltibia=42; %mm
@@ -25,6 +25,7 @@ for j=1:length(movS)
     q.data(:,1)=in_mot_data.data(:,1);
     q.data(:,2:7)=repmat(in_mot_data.data(1,2:7),size(q.data,1),1); %sacrum_data
     q.data(:,8)=in_mot_data.data(:,8);
+    pelvis_euler=q.data(:,2:4);
 
     %index position of markers in the matrix
     I_pelvis_top=find(contains(trc_data.Properties.VariableNames,'pelvis_top'));
@@ -58,7 +59,7 @@ for j=1:length(movS)
 
 
     for i=1:nf
-        [eulerZXY(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipEulerAnglesFromDistances(pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia);
+        [eulerZXY(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipEulerAnglesFromDistances(pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia, pelvis_euler(i,:));
 
         knee_angle_deg(i,:) = -computeKneeAngle(pos_hip(i,:), pos_knee(i,:), pos_ankle(i,:));
         
@@ -184,7 +185,7 @@ function eul_deg_hip = computeHipEulerZXY(P1, P1a, P1b, P4, P2)
 end
 
 
-function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(P1, P1a, P1b, P2, P2a, P2b, l1, l2)
+function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(P1, P1a, P1b, P2, P2a, P2b, l1, l2, pelvis_euler)
     % Step 1: Define the plane from P2a, P2b, P1
     plane_origin = P2a;
     v1 = P2b - P2a;
@@ -227,19 +228,22 @@ function [eulerZXY, selectedP4, Z_femur] = computeHipEulerAnglesFromDistances(P1
     end
 
     % Choose one candidate — e.g., the one with Z_femur aligned positively with Z_pelvis
-    [eulerZXY, ok, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, selectedP4);
+    [eulerZXY, ok, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, selectedP4, pelvis_euler);
 
 end
 
-function [thetaZXY, valid, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, P4)
+function [thetaZXY, valid, Z_femur] = tryEuler(P1, P1a, P1b, P2, P2a, P2b, P4, pelvis_euler)
     
     P4=P4(:)';
     valid = true;
 
-    X_pelvis = (P1b - P1) / norm(P1b - P1);
-    Z_pelvis = cross(P1b - P1a, P1 - P1a); Z_pelvis = Z_pelvis / norm(Z_pelvis);
-    Y_pelvis = cross(Z_pelvis, X_pelvis); Y_pelvis = Y_pelvis / norm(Y_pelvis);
-    R_pelvis = [X_pelvis(:), Y_pelvis(:), Z_pelvis(:)];
+    %wrong way, not accurate, better to take the orientation from IK
+    % X_pelvis = (P1b - P1) / norm(P1b - P1);
+    % Z_pelvis = cross(P1b - P1a, P1 - P1a); Z_pelvis = Z_pelvis / norm(Z_pelvis);
+    % Y_pelvis = cross(Z_pelvis, X_pelvis); Y_pelvis = Y_pelvis / norm(Y_pelvis);
+    % R_pelvis = [X_pelvis(:), Y_pelvis(:), Z_pelvis(:)];
+    R_pelvis=eul2rotm(pelvis_euler*pi/180,'ZXY');
+    Z_pelvis=R_pelvis(:,3);
 
     Y_femur = (P1 - P4) / norm(P1 - P4);
     Z_femur = cross(P2a - P1, P2b - P1);
