@@ -37,7 +37,7 @@ Options.secondfolder=1;
 main_folder='Datarat25\baseline_forward_2mm\';
 main_folder2='Datarat25\baseline_backward_2mm\';
 if Options.normalizeCostFunction
-    ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
@@ -207,6 +207,8 @@ end
 %     keyboard;
 %     F = external('F','RightRatHindlimb_Zhong.dll');   
 % end
+nPoints = Options.N * Options.d;
+Fmap=F.map(nPoints,'serial');
 
 ndofs=7; %ndofs to construct polynomials must be 7 here
 if Options.optimizeMuscleProp
@@ -508,10 +510,10 @@ A=[];
 b=[];
 Aeq=[];
 beq=[];
-options=optimset('Display','iter');
+options=optimset('Display','iter','UseParallel',true);
 options.MaxFunEvals =5e4;
 fprintf('Start optimization');
-[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 fprintf('Optimization finished');
 
 if Options.optInertiaParam
@@ -912,7 +914,7 @@ sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 
 
 
-function f=costfun(x,guess,varnames,Options,expdata,F,ref_solution,all_trc_data)
+function f=costfun(x,guess,varnames,Options,expdata,Fmap,ref_solution,all_trc_data)
 f=[];
 
 ndofs=7;
@@ -926,11 +928,63 @@ t_col_grid(1:4:end)=[];
 list4passprop=Options.list4passprop;
 nvar_passparam=length(guess.Kstiff);
 
+nTrials = numel(fieldnames(expdata));
+nTrackedDofs = nnz(Options.dofs_to_track);
+
+nDynamicTerms = ...
+    nTrials * Options.N * Options.d * nTrackedDofs;
+
+nRegularizationTerms = 0;
+
+if Options.optInertiaParam
+    nRegularizationTerms = nRegularizationTerms + ...
+        nnz(contains(varnames,'inertiaParam'));
+end
+
+if Options.optimizePassiveJointEl && Options.minPassiveProp == 1
+    nRegularizationTerms = nRegularizationTerms + ...
+        nnz(contains(varnames,'Ks'));
+
+    nRegularizationTerms = nRegularizationTerms + ...
+        nnz(contains(varnames,'Ds'));
+
+    if Options.optInertiapassiveParam
+        nRegularizationTerms = nRegularizationTerms + ...
+            nnz(contains(varnames,'inertiapassprop'));
+    end
+
+    if ~Options.pendevPassive && ~Options.useRestingMoments
+        nRegularizationTerms = nRegularizationTerms + ...
+            numel(guess.theta0) * Options.ntrials4passprop;
+    end
+
+    if Options.useRestingMoments
+        nRegularizationTerms = nRegularizationTerms + ...
+            nnz(contains(varnames,'K0s'));
+    end
+end
+
+nHipAnkleTerms = nnz(contains(varnames,'hip_ankle_qs'));
+
+nResiduals = ...
+    nRegularizationTerms + ...
+    nHipAnkleTerms + ...
+    nDynamicTerms;
+
+f = zeros(nResiduals,1);
+idx = 0;
+
+
+
 if Options.optInertiaParam
     I=contains(varnames,'inertiaParam');
     inertiaParam=x(I);
 
-    f=[f; inertiaParam-guess.inertiaParam'];
+    % f=[f; inertiaParam-guess.inertiaParam'];
+    nv=numel(inertiaParam);
+    f(idx+1:idx+nv)=inertiaParam-guess.inertiaParam';
+    idx=idx+nv;
+
     inertiaParam_unsc=inertiaParam.*scaling.inertiaparam';
 else
     inertiaParam_unsc=Options.inertiaParam_unsc;
@@ -956,19 +1010,36 @@ if Options.optimizePassiveJointEl
     end
     
     if Options.minPassiveProp==1
-        f=[f; W.Kstiff*Kstiff(:)];
-        f=[f; W.Ddamp*Ddamp(:)];
+        % f=[f; W.Kstiff*Kstiff(:)];
+        nv=numel(Kstiff(:));
+        f(idx+1:idx+nv)=W.Kstiff*Kstiff(:);
+        idx = idx +nv; 
+
+        % f=[f; W.Ddamp*Ddamp(:)];
+        nv=numel(Ddamp(:));
+        f(idx+1:idx+nv)=W.Ddamp*Ddamp(:);
+        idx=idx+nv;
+
         if Options.optInertiapassiveParam
-            f=[f; W.Inertiapassparam*InertiapassiveParam];
+            % f=[f; W.Inertiapassparam*InertiapassiveParam];
+            nv=numel(InertiapassiveParam);
+            f(idx+1:idx+nv)=W.Inertiapassparam*InertiapassiveParam;
+            idx=idx+nv;
         end
         if Options.pendevPassive
             %do not include twice the penalization of theta0
         else
             difftheta0=theta0-repmat(guess.theta0,ntrials4passprop,1);
-            f=[f; W.theta0*difftheta0(:)];
+            % f=[f; W.theta0*difftheta0(:)];
+            nv=numel(difftheta0(:));
+            f(idx+1:idx+nv)=W.theta0*difftheta0(:);
+            idx=idx+nv;
         end
         if Options.useRestingMoments
-            f=[f; W.Kstiff*K0(:)];
+            % f=[f; W.Kstiff*K0(:)];
+            nv=numel(K0(:));
+            f(idx+1:idx+nv)=W.Kstiff*K0(:);
+            idx=idx+nv;
         end
     end
     Kstiff_unsc=Kstiff*scaling.Kstiff;
@@ -984,7 +1055,10 @@ if Options.optimizePassiveJointEl
 end
 I=contains(varnames,'hip_ankle_qs');
 hip_ankle_qs=x(I);
-f=[f; hip_ankle_qs];
+% f=[f; hip_ankle_qs];
+nv=numel(hip_ankle_qs);
+f(idx+1:idx+nv)=hip_ankle_qs;
+idx=idx+nv;
 
 nametrials=fieldnames(expdata);
 trc_nametrials=fieldnames(all_trc_data);
@@ -1004,6 +1078,41 @@ for i=1:size(nametrials,1)
     QsQdots_col{i}=QsQdots_new(t_col_grid,:);
     Qd2dot_col{i}=Qd2dots_new(t_col_grid,:);
     forces_prescribed{i}=expdata.(nametrials{i}).f(t_col_grid,2:end);
+
+    % ---------------------------------------------------------------
+    % Batch all CasADi inputs for this trial. Each column is one
+    % collocation point, ordered as p = (k-1)*d + j. Fmap must be
+    % created once before lsqnonlin using:
+    %     Fmap = F.map(Options.N*Options.d,'serial');
+    % ---------------------------------------------------------------
+    nPoints = N*d;
+
+    all_QsQdot_batch = [ ...
+        QsQdot_prescribed{i}(t_col_grid,:), ...
+        QsQdots_col{i}];                         % nPoints x 28
+
+    all_Qd2dot_batch = [ ...
+        Qd2dot_prescribed{i}(t_col_grid,:), ...
+        Qd2dot_col{i}];                          % nPoints x 14
+
+    inertiaParam_batch = repmat( ...
+        inertiaParam_unsc(:),1,nPoints);
+
+    Finput_batch = [ ...
+        all_QsQdot_batch.'; ...
+        all_Qd2dot_batch.'; ...
+        forces_prescribed{i}.'; ...
+        inertiaParam_batch];
+
+    % One MATLAB-to-CasADi call for all collocation points in the trial.
+    out_batch = full(Fmap(Finput_batch));
+
+    if size(out_batch,2) ~= nPoints
+        error('costfun_batched:UnexpectedCasadiOutput', ...
+            ['Expected Fmap to return one output column per collocation ' ...
+             'point (%d), but received %d columns.'], ...
+            nPoints,size(out_batch,2));
+    end
 
     if Options.optimizeMuscleProp
         %define a, lM0, lTs...
@@ -1034,6 +1143,7 @@ for i=1:size(nametrials,1)
 
     for k=1:N
         for j=1:d
+            p=(k-1)*d+j;
             if Options.optimizeMuscleProp
                 %Get moment arms and muscle-tendon lengths at that frame
                 keyboard;
@@ -1046,11 +1156,14 @@ for i=1:size(nametrials,1)
 
             forces_prescribed_j=forces_prescribed{i}((k-1)*d+j,:);
 
-            % if Options.optInertiaParam
-                out=full(F([all_QsQdot';all_Qd2dot';forces_prescribed_j';inertiaParam_unsc]));
-            % else
-            %     out=full(F([all_QsQdot';all_Qd2dot';forces_prescribed_j']));
-            % end
+            % % if Options.optInertiaParam
+                % out=full(F([all_QsQdot';all_Qd2dot';forces_prescribed_j';inertiaParam_unsc]));
+            % % else
+            % %     out=full(F([all_QsQdot';all_Qd2dot';forces_prescribed_j']));
+            % % end
+            
+            % Retrieve the already-computed CasADi output for this point.
+            out=out_batch(:,p);
 
             if Options.optimizeMuscleProp
                 %Hill equilibrium
@@ -1097,9 +1210,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,8));
-                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5)];
+                    % f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                    % f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1131,9 +1250,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,9));
-                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5)];
+                    % f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                    % f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(9)-T_hip_add-PassiveM_hip_add)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1165,9 +1290,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,10));
-                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5)];
+                    % f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                    % f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1210,9 +1341,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,11));
-                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5)];
+                    % f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                    % f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1255,9 +1392,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,12));
-                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5)];
+                    % f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                    % f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1289,9 +1432,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,13));
-                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5)];
+                    % f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                    % f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                    nv=1;
+                    f(idx+1:idx+nv)=(out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1323,9 +1472,15 @@ for i=1:size(nametrials,1)
                 end
                 if Options.normalizeCostFunction
                     vari=var(ref_solution.sol_val.out{i}(:,14));
-                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5)];
+                    % f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5)];
+                    nv=1;
+                    f(idx+1*idx+nv)=(out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5);
+                    idx=idx+nv;
                 else
-                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                    % f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                    nv=1;
+                    f(idx+1*idx+nv)=(out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T;
+                    idx=idx+nv;
                 end
             end
 
@@ -1339,7 +1494,11 @@ for i=1:size(nametrials,1)
 end
 
 
-    
+
+
+assert(idx == nResiduals, ...
+    'Residual count mismatch: expected %d, wrote %d.', ...
+    nResiduals,idx);    
 
 
 
