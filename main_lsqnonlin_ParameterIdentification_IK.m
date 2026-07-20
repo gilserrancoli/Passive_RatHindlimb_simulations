@@ -506,6 +506,24 @@ lb=[lb; bounds.hip_ankleqs.lower];
 ub=[ub; bounds.hip_ankleqs.upper];
 varnames=[varnames; repmat({'hip_ankle_qs'},length(guess.hip_ankleqs),1)];
 
+idx_var.inertiaParam = contains(varnames,'inertiaParam');
+idx_var.Kstiff       = contains(varnames,'Ks');
+idx_var.Ddamp        = contains(varnames,'Ds');
+idx_var.K0           = contains(varnames,'K0s');
+idx_var.theta0       = contains(varnames,'theta0s');
+idx_var.inertiaPass  = contains(varnames,'inertiapassprop');
+idx_var.hipAnkle     = contains(varnames,'hip_ankle_qs');
+
+if exist('Jpattern.mat')
+    load('Jpattern.mat');
+else
+    Jpattern = estimateJacobianPattern( ...
+        @(x)costfun(x,guess,idx_var, varnames,Options,expdata,Fmap,ref_solution,all_trc_data), ...
+        x0(:), ...
+        lb(:), ...
+        ub(:));
+end
+
 A=[];
 b=[];
 Aeq=[];
@@ -513,7 +531,7 @@ beq=[];
 options=optimset('Display','iter','UseParallel',true);
 options.MaxFunEvals =5e4;
 fprintf('Start optimization');
-[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,idx_var, varnames,Options,expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 fprintf('Optimization finished');
 
 if Options.optInertiaParam
@@ -914,7 +932,7 @@ sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 
 
 
-function f=costfun(x,guess,varnames,Options,expdata,Fmap,ref_solution,all_trc_data)
+function f=costfun(x,guess,idx_var,varnames,Options,expdata,Fmap,ref_solution,all_trc_data)
 f=[];
 
 ndofs=7;
@@ -977,8 +995,8 @@ idx = 0;
 
 
 if Options.optInertiaParam
-    I=contains(varnames,'inertiaParam');
-    inertiaParam=x(I);
+    % I=contains(varnames,'inertiaParam');
+    inertiaParam=x(idx_var.inertiaParam);
 
     % f=[f; inertiaParam-guess.inertiaParam'];
     nv=numel(inertiaParam);
@@ -993,20 +1011,20 @@ if Options.optimizeMuscleProp&Options.optimizelM0
     %need to write, lM0 deviation
 end
 if Options.optimizePassiveJointEl
-    I=contains(varnames,'Ks');
-    Kstiff=x(I);
-    I=contains(varnames,'Ds');
-    Ddamp=x(I);
+    % I=contains(varnames,'Ks');
+    Kstiff=x(idx_var.Kstiff);
+    % I=contains(varnames,'Ds');
+    Ddamp=x(idx_var.Ddamp);
     if Options.useRestingMoments
-        I=contains(varnames,'K0s');
-        K0=x(I);
+        % I=contains(varnames,'K0s');
+        K0=x(idx_var.K0);
     else
-        I=contains(varnames,'theta0s');
-        theta0=x(I);
+        % I=contains(varnames,'theta0s');
+        theta0=x(idx_var.theta0);
     end
     if Options.optInertiapassiveParam
-        I=contains(varnames,'inertiapassprop');
-        InertiapassiveParam=x(I);
+        % I=contains(varnames,'inertiapassprop');
+        InertiapassiveParam=x(idx_var.InertiaPass);
     end
     
     if Options.minPassiveProp==1
@@ -1053,8 +1071,8 @@ if Options.optimizePassiveJointEl
         InertiapassiveParam_unsc=InertiapassiveParam*scaling.Inertiapassparam;
     end
 end
-I=contains(varnames,'hip_ankle_qs');
-hip_ankle_qs=x(I);
+% I=contains(varnames,'hip_ankle_qs');
+hip_ankle_qs=x(idx_var.hipAnkle);
 % f=[f; hip_ankle_qs];
 nv=numel(hip_ankle_qs);
 f(idx+1:idx+nv)=hip_ankle_qs;
@@ -1744,8 +1762,19 @@ function [QsQdots,Qd2dots]=ComputeIK(expdata_q,hip_ankle_qs,trc_data,Options,nam
         pos_toe=pos_toe_0i(1,:)+(perturbation_in-perturbation_in(1))*v_toe';
     end
 
+    solutionGuess=[];
+    previousSolution=[];
     for i=1:nf
-        [hip_flexion(i,:), hip_introtation(i,:), pos_knee(i,:), Z_femur(i,:)] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia);
+        % [hip_flexion(i,:), hip_introtation(i,:), pos_knee(i,:), Z_femur(i,:), solutionGuess] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip(i,:), pos_pelvis_bottom(i,:), pos_pelvis_top(i,:), pos_ankle(i,:), pos_ankle(1,:), pos_ankle(end,:), lfemur, ltibia,solutionGuess);
+        solution = solveHipAnglesAnalytical(R_pelvis_ground, ...
+            hip_ankle_qs(1), pos_hip(i,:), pos_ankle(i,:), lfemur, ...
+            ltibia, previousSolution);
+        hip_flexion(i,1) = solution.hipFlexion;
+        hip_introtation(i,1) = solution.hipInternalRotation;
+        pos_knee(i,:) = solution.posKnee.';
+        Z_femur(i,:) = solution.ZFemur.';
+        previousSolution = [solution.hipFlexion; ...
+            solution.hipInternalRotation];
 
         knee_angle_deg(i,:) = -computeKneeAngle(pos_hip(i,:), pos_knee(i,:), pos_ankle(i,:));
         
@@ -1760,7 +1789,7 @@ function [QsQdots,Qd2dots]=ComputeIK(expdata_q,hip_ankle_qs,trc_data,Options,nam
     % q.data(:,2:8)=expdata_q(:,2:8);
     % q.data(:,[9:15])=[hip_flexion repmat(hip_ankle_qs(1)*pi/180,size(q.data,1),1) hip_introtation*pi/180 knee_angle_deg ankle_flexion repmat([0 hip_ankle_qs(2)]*pi/180,size(q.data,1),1)];
 
-    new_qs=[hip_flexion*pi/180 repmat(hip_ankle_qs(1),size(q.data,1),1) hip_introtation*pi/180 knee_angle_deg*pi/180 ankle_flexion*pi/180 repmat([0 hip_ankle_qs(2)],size(q.data,1),1)];
+    new_qs=[hip_flexion repmat(hip_ankle_qs(1),size(q.data,1),1) hip_introtation knee_angle_deg ankle_flexion repmat([0 hip_ankle_qs(2)],size(q.data,1),1)];
 
     time_trc=table2array(trc_data(2:end,2));
     [B,A]=butter(3,100/(5000/2));
@@ -1827,7 +1856,7 @@ spine_euler=rotm2eul(R_spine_ground,'ZXY')*180/pi;
 end
 
 
-function [hip_flexion, hip_introtation, pos_knee, Z_femur] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip, pos_pelvis_bottom, pos_pelvis_top, pos_ankle, pos_ankle_1, pos_ankle_end, lfemur, ltibia);
+function [hip_flexion, hip_introtation, pos_knee, Z_femur, nextGuess] = computeHipFlexion_Kneepos_FromDistances(R_spine_ground, R_pelvis_ground, hip_ankle_qs, pos_hip, pos_pelvis_bottom, pos_pelvis_top, pos_ankle, pos_ankle_1, pos_ankle_end, lfemur, ltibia,initialGuess);
 
 % Hip-to-knee direction in the femur local frame.
     femurLocalAxis = [0; -1; 0];
@@ -1840,9 +1869,6 @@ end
 
 hipAdduction=hip_ankle_qs(1);
 
-initialFlexion=30*pi/180;
-initialInternalRotation=0;
-
 residualFunction = @(q) reconstructionResiduals( ...
         q, pos_hip, pos_ankle, lfemur, ltibia, ...
         R_pelvis_ground, hipAdduction, femurLocalAxis);
@@ -1854,12 +1880,14 @@ options = optimoptions( ...
     'StepTolerance', 1e-12, ...
     'OptimalityTolerance', 1e-12);
 
-initialGuess = [ ...
-        initialFlexion;
-        initialInternalRotation];
+if isempty(initialGuess)
+    x0=[30*pi/180; 0];
+else
+    x0 = initialGuess;
+end
 
 [solution, residualVector, exitflag, solverOutput] = ...
-    fsolve(residualFunction, initialGuess, options);
+    fsolve(residualFunction, x0, options);
 
 if exitflag <= 0
     warning(['The hip reconstruction solver did not converge. ', ...
@@ -1868,6 +1896,7 @@ end
 
 hipFlexionRad = solution(1);
 hipInternalRotationRad = solution(2);
+nextGuess=solution;
 
 femurRotation = buildFemurRotation( ...
     R_pelvis_ground, hipFlexionRad, hipAdduction, hipInternalRotationRad);
@@ -2010,12 +2039,12 @@ function ankle_flexion = computeAnkleFlexionAngle(hip_ankle_qs,pos_hip, pos_knee
     Z_foot = R_foot(:,3);
 
     %% 3. Relative rotation and ZXY Euler angles
-    eulerZXY = rad2deg(rotm2eul(R_relative, 'ZXY'));  % MATLAB intrinsic ZXY
+    eulerZXY = rotm2eul(R_relative, 'ZXY');  % MATLAB intrinsic ZXY
     ankle_flexion=eulerZXY(1);
 
 end
 
-function knee_angle_deg = computeKneeAngle(P1, P4, P2)
+function knee_angle = computeKneeAngle(P1, P4, P2)
     % Inputs:
     % P1 - Hip position [1x3]
     % P4 - Knee position [1x3]
@@ -2028,10 +2057,7 @@ function knee_angle_deg = computeKneeAngle(P1, P4, P2)
     % Step 2: Compute angle between Y axes
     cos_theta = dot(Y_femur, Y_tibia);  % dot product
     cos_theta = min(max(cos_theta, -1), 1);  % clamp for numerical safety
-    angle_rad = acos(cos_theta);  % angle in radians
-
-    % Step 3: Convert to degrees
-    knee_angle_deg = rad2deg(angle_rad);
+    knee_angle = acos(cos_theta);  % angle in radians
 end
 
 function residuals = reconstructionResiduals( ...
@@ -2064,4 +2090,253 @@ function residuals = reconstructionResiduals( ...
     residuals = [ ...
         lengthResidual;
         planeResidual];
+end
+
+function solutions = solveHipAnglesAnalytical( ...
+    R_pelvis_ground, ...
+    hipAdduction, ...
+    pos_hip, ...
+    pos_ankle, ...
+    lfemur, ...
+    ltibia, ...
+    previousSolution)
+%SOLVEHIPANGLESANALYTICAL
+% Analytically solves:
+%
+%   norm(pos_ankle-pos_knee) = ltibia
+%   dot(Z_femur,pos_ankle-pos_knee) = 0
+%
+% Rotation convention:
+%
+%   R_femur = R_pelvis * Rz(hipFlexion) ...
+%                       * Rx(hipAdduction) ...
+%                       * Ry(hipInternalRotation)
+%
+% Femur local longitudinal axis:
+%
+%   femurLocalAxis = [0;-1;0]
+%
+% Inputs:
+%   previousSolution: optional [hipFlexion; hipInternalRotation] used
+%                     to choose the continuous solution branch.
+%
+% Output:
+%   solutions is a structure containing:
+%       hipFlexion
+%       hipInternalRotation
+%       posKnee
+%       ZFemur
+%       allCandidates
+
+    if nargin < 8
+        previousSolution = [];
+    end
+
+    femurLocalAxis = [0; -1; 0];
+
+    posHip = pos_hip(:);
+    posAnkle = pos_ankle(:);
+
+    % Transform the hip-to-ankle vector to the pelvis frame.
+    hipToAnklePelvis = ...
+        R_pelvis_ground.' * (posAnkle-posHip);
+
+    % Femur direction after fixed hip adduction, but before flexion.
+    Rx = rotationX(hipAdduction);
+    femurDirection0 = Rx*femurLocalAxis;
+
+    px = hipToAnklePelvis(1);
+    py = hipToAnklePelvis(2);
+    pz = hipToAnklePelvis(3);
+
+    wx = femurDirection0(1);
+    wy = femurDirection0(2);
+    wz = femurDirection0(3);
+
+    % From:
+    %
+    % ||p - lfemur*Rz(phi)*w||^2 = ltibia^2
+    %
+    % obtain:
+    %
+    % A*cos(phi) + B*sin(phi) = D.
+
+    A = px*wx + py*wy;
+    B = -px*wy + py*wx;
+
+    C = (dot(hipToAnklePelvis,hipToAnklePelvis) ...
+        + lfemur^2-ltibia^2)/(2*lfemur);
+
+    D = C-pz*wz;
+
+    rho = hypot(A,B);
+
+    tolerance = 1e-12;
+
+    if rho < tolerance
+        error(['Hip-flexion solution is geometrically degenerate: ', ...
+               'the flexion-dependent projection has near-zero magnitude.']);
+    end
+
+    cosineArgument = D/rho;
+
+    % Allow small floating-point violations.
+    if cosineArgument > 1+tolerance || cosineArgument < -1-tolerance
+        error(['No exact hip-flexion solution exists. ', ...
+               'The requested segment lengths are incompatible ', ...
+               'with the hip and ankle positions. D/rho = %.8f.'], ...
+               cosineArgument);
+    end
+
+    cosineArgument = max(-1,min(1,cosineArgument));
+
+    phase = atan2(B,A);
+    angleOffset = acos(cosineArgument);
+
+    hipFlexionCandidates = [
+        wrapToPiLocal(phase + angleOffset)
+        wrapToPiLocal(phase - angleOffset)
+    ];
+
+    allCandidates = repmat(struct( ...
+        'hipFlexion',[], ...
+        'hipInternalRotation',[], ...
+        'posKnee',[], ...
+        'ZFemur',[], ...
+        'lengthResidual',[], ...
+        'planeResidual',[]),4,1);
+
+    candidateNumber = 0;
+
+    for flexionIndex = 1:2
+        hipFlexion = hipFlexionCandidates(flexionIndex);
+
+        RbeforeInternalRotation = ...
+            R_pelvis_ground ...
+            * rotationZ(hipFlexion) ...
+            * Rx;
+
+        % Internal rotation does not change the knee location because
+        % femurLocalAxis is parallel to the local Y axis.
+        posKnee = posHip ...
+            + lfemur*RbeforeInternalRotation*femurLocalAxis;
+
+        tibiaVector = posAnkle-posKnee;
+
+        % Express tibia vector in the femur frame before Ry(psi).
+        tibiaPreInternal = ...
+            RbeforeInternalRotation.'*tibiaVector;
+
+        tx = tibiaPreInternal(1);
+        tz = tibiaPreInternal(3);
+
+        % For the standard active Ry:
+        %
+        % Ry(psi)*e_z = [sin(psi); 0; cos(psi)]
+        %
+        % Plane constraint:
+        %
+        % tx*sin(psi) + tz*cos(psi) = 0.
+        %
+        % Therefore:
+        %
+        % psi = atan2(-tz,tx) + k*pi.
+
+        if hypot(tx,tz) < tolerance
+            % The plane residual is zero for every internal rotation.
+            internalRotationCandidates = [0; pi];
+        else
+            internalRotationBase = atan2(-tz,tx);
+
+            internalRotationCandidates = [
+                wrapToPiLocal(internalRotationBase)
+                wrapToPiLocal(internalRotationBase + pi)
+            ];
+        end
+
+        for rotationIndex = 1:2
+            hipInternalRotation = ...
+                internalRotationCandidates(rotationIndex);
+
+            femurRotation = ...
+                RbeforeInternalRotation ...
+                * rotationY(hipInternalRotation);
+
+            ZFemur = femurRotation(:,3);
+            ZFemur = ZFemur/norm(ZFemur);
+
+            candidateNumber = candidateNumber+1;
+
+            allCandidates(candidateNumber).hipFlexion = ...
+                hipFlexion;
+
+            allCandidates(candidateNumber).hipInternalRotation = ...
+                hipInternalRotation;
+
+            allCandidates(candidateNumber).posKnee = posKnee;
+            allCandidates(candidateNumber).ZFemur = ZFemur;
+
+            allCandidates(candidateNumber).lengthResidual = ...
+                norm(tibiaVector)-ltibia;
+
+            allCandidates(candidateNumber).planeResidual = ...
+                dot(ZFemur,tibiaVector);
+        end
+    end
+
+    % Choose the candidate closest to the previous frame.
+    if ~isempty(previousSolution)
+        previousSolution = previousSolution(:);
+
+        candidateDistance = zeros(4,1);
+
+        for candidateIndex = 1:4
+            flexionDifference = angularDifference( ...
+                allCandidates(candidateIndex).hipFlexion, ...
+                previousSolution(1));
+
+            rotationDifference = angularDifference( ...
+                allCandidates(candidateIndex).hipInternalRotation, ...
+                previousSolution(2));
+
+            candidateDistance(candidateIndex) = ...
+                hypot(flexionDifference,rotationDifference);
+        end
+
+        [~,selectedIndex] = min(candidateDistance);
+    else
+        % Default branch selection:
+        % choose the solution with the smallest total angle magnitude.
+        candidateMagnitude = zeros(4,1);
+
+        for candidateIndex = 1:4
+            candidateMagnitude(candidateIndex) = hypot( ...
+                allCandidates(candidateIndex).hipFlexion, ...
+                allCandidates(candidateIndex).hipInternalRotation);
+        end
+
+        [~,selectedIndex] = min(candidateMagnitude);
+    end
+
+    selected = allCandidates(selectedIndex);
+
+    solutions.hipFlexion = selected.hipFlexion;
+    solutions.hipInternalRotation = ...
+        selected.hipInternalRotation;
+    solutions.posKnee = selected.posKnee;
+    solutions.ZFemur = selected.ZFemur;
+    solutions.lengthResidual = selected.lengthResidual;
+    solutions.planeResidual = selected.planeResidual;
+    solutions.allCandidates = allCandidates;
+end
+
+function angle = wrapToPiLocal(angle)
+    angle = atan2(sin(angle),cos(angle));
+end
+
+
+function difference = angularDifference(angle1,angle2)
+    difference = atan2( ...
+        sin(angle1-angle2), ...
+        cos(angle1-angle2));
 end
