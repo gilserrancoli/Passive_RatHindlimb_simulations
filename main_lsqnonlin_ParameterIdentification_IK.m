@@ -28,7 +28,8 @@ Options.optimizePassiveJointEl=1;
     Options.orderPassiveJoint=1; %either 1 or 3
     Options.KDwithinteractionterms=1;
         Options.nointeraction_hipankle=1;
-Options.individualpassiveprop=0;
+Options.individualpassiveprop=0; %consider different stiffness and damper parameters for each case (each perturbation)
+    Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters have the same values (ideal for testing variable inertia parameters for each perturbation)
 
 Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
@@ -433,6 +434,9 @@ end
 if Options.optimizePassiveJointEl
     if Options.individualpassiveprop==1
         ntrials4passprop=size(fieldnames(expdata),1);
+    elseif (Options.individualpassiveprop==0)&&(Options.samepassiveprop==1)
+        ntrials4passprop=size(fieldnames(expdata),1);
+        list4passprop=ones(1,size(fieldnames(expdata),1));
     elseif contains(main_folder,'May2025')&&Options.secondfolder==0
         ntrials4passprop=4;
         list4passprop=[4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
@@ -531,7 +535,7 @@ beq=[];
 options=optimset('Display','iter','UseParallel',true);
 options.MaxFunEvals =5e4;
 fprintf('Start optimization');
-[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,idx_var, varnames,Options,expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
+[x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x, guess, idx_var, varnames, Options, expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 fprintf('Optimization finished');
 
 if Options.optInertiaParam
@@ -1850,8 +1854,8 @@ R_spine_ground=R_pelvis*R_sacroiliac';
 t_hip=pos_hip(1,:)'/1000-R_pelvis*pos_hip_in_pelvis_frame;
 t_spine=t_hip-R_spine_ground*t_sacroiliac;
 
-spine_euler=rotm2eul(R_spine_ground,'ZXY')*180/pi;
-
+% spine_euler=rotm2eul(R_spine_ground,'ZXY')*180/pi;
+spine_euler=rotm2eulZXY_fast(R_spine_ground)*180/pi;
 
 end
 
@@ -2039,7 +2043,8 @@ function ankle_flexion = computeAnkleFlexionAngle(hip_ankle_qs,pos_hip, pos_knee
     Z_foot = R_foot(:,3);
 
     %% 3. Relative rotation and ZXY Euler angles
-    eulerZXY = rotm2eul(R_relative, 'ZXY');  % MATLAB intrinsic ZXY
+    % eulerZXY = rotm2eul(R_relative, 'ZXY');  % MATLAB intrinsic ZXY
+    eulerZXY = rotm2eulZXY_fast (R_relative);
     ankle_flexion=eulerZXY(1);
 
 end
