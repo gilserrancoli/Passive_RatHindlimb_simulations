@@ -32,7 +32,7 @@ Options.individualpassiveprop=0; %consider different stiffness and damper parame
     Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters have the same values (ideal for testing variable inertia parameters for each perturbation)
 
 Options.removefirstpertRat22=1;
-Options.normalizeCostFunction=1;
+Options.normalizeCostFunction=0;
 
 Options.secondfolder=1;
 main_folder='Datarat25\baseline_forward_2mm\';
@@ -518,22 +518,33 @@ idx_var.theta0       = contains(varnames,'theta0s');
 idx_var.inertiaPass  = contains(varnames,'inertiapassprop');
 idx_var.hipAnkle     = contains(varnames,'hip_ankle_qs');
 
-if exist('Jpattern.mat')
-    load('Jpattern.mat');
+aux=costfun(x0,guess,idx_var, varnames,Options,expdata,Fmap,ref_solution,all_trc_data);
+Jpattern_name=['Jpattern' num2str(length(aux)) 'x' num2str(length(x0)) '.mat'];
+if exist(Jpattern_name)
+    load(Jpattern_name);
 else
     Jpattern = estimateJacobianPattern( ...
         @(x)costfun(x,guess,idx_var, varnames,Options,expdata,Fmap,ref_solution,all_trc_data), ...
         x0(:), ...
         lb(:), ...
         ub(:));
+    save(Jpattern_name,'Jpattern');
 end
 
 A=[];
 b=[];
 Aeq=[];
 beq=[];
-options=optimset('Display','iter','UseParallel',true);
-options.MaxFunEvals =5e4;
+% options=optimset('Display','iter','UseParallel',true,...
+%     'Jacobian', 'off', 'JacobPattern', sparse(double(Jpattern)), ...
+%     'FinDiffType','forward');
+options = optimoptions('lsqnonlin', ...
+'Display','iter-detailed', ...
+'Algorithm','interior-point', ...
+'UseParallel',true, ...
+'SpecifyObjectiveGradient',false, ...
+'JacobPattern',sparse(double(Jpattern)), ...
+'FiniteDifferenceType','forward');
 fprintf('Start optimization');
 [x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x, guess, idx_var, varnames, Options, expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 fprintf('Optimization finished');
@@ -932,8 +943,9 @@ sol_val.QsQdot_prescribed=QsQdot_prescribed;
 sol_val.QsQdots_col_unsc=QsQdots_col;
 sol_val.Qd2dot_col_unsc=Qd2dot_col;
 sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
+sol_val.hip_ankle_qs=hip_ankle_qs;
 
-
+save('solution.mat','sol_val','x','Options','resnorm','residual','exitflag','output');
 
 
 function f=costfun(x,guess,idx_var,varnames,Options,expdata,Fmap,ref_solution,all_trc_data)
@@ -1659,8 +1671,8 @@ function [c,ceq]=nonlcon(x,varnames,Options)
             K13=Kstiffi(5);
             K23=Kstiffi(6);
         end
-        c=[c; K12^2-K11*K22; K23^2-K11*K33; K23^2-K22*K33];
-        c=-[c; K11*K22*K33+2*K12*K13*K23-K11*(K23^2)-K22*(K13^2)-K33*(K12^2)]; %(detK >0)
+        c=[c; K12^2-K11*K22; K13^2-K11*K33; K23^2-K22*K33];
+        c=[c; -(K11*K22*K33+2*K12*K13*K23-K11*(K23^2)-K22*(K13^2)-K33*(K12^2))]; %(detK >0)
     end
 
     
