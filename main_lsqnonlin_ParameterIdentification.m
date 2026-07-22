@@ -28,7 +28,9 @@ Options.optimizePassiveJointEl=1;
     Options.orderPassiveJoint=1; %either 1 or 3
     Options.KDwithinteractionterms=1;
         Options.nointeraction_hipankle=1;
-Options.individualpassiveprop=0;
+Options.individualpassiveprop=1; %consider different stiffness and damper parameters for each case (each perturbation)
+    Options.samepassiveprop=0; %only if previous is 0, all stiffness and damping parameters for the same perturbation have the same values (ideal for testing variable inertia parameters for each perturbation)
+
 
 Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
@@ -401,6 +403,9 @@ end
 if Options.optimizePassiveJointEl
     if Options.individualpassiveprop==1
         ntrials4passprop=size(fieldnames(expdata),1);
+    elseif (Options.individualpassiveprop==0)&&(Options.samepassiveprop==1)
+        ntrials4passprop=size(fieldnames(expdata),1);
+        list4passprop=ones(1,size(fieldnames(expdata),1));
     elseif contains(main_folder,'May2025')&&Options.secondfolder==0
         ntrials4passprop=4;
         list4passprop=[4 3 2 1 1 2 3 4]; %perturbations at 30 20 10 0 0 10...
@@ -473,7 +478,7 @@ A=[];
 b=[];
 Aeq=[];
 beq=[];
-options=optimset('Display','iter');
+options=optimset('Display','iter','UseParallel',true);
 options.MaxFunEvals =5e4;
 [x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 
