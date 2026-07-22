@@ -17,7 +17,7 @@ Options.useOptimizedIG=0;
 Options.penalizeHighFTtilde=1;
 Options.penalizeFTtot=0;
 Options.penalizeoutoflMtilde1=0;
-Options.optInertiaParam=0;
+Options.optInertiaParam=1;
 Options.minPassiveProp=1;
 Options.pendevPassive=1; 
 Options.useRestingMoments=1;
@@ -34,10 +34,10 @@ Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
 
 Options.secondfolder=1;
-main_folder='Datarat23\baseline_forward\';
-main_folder2='Datarat23\baseline_backward\';
+main_folder='Datarat25\baseline_forward_2mm\';
+main_folder2='Datarat25\baseline_backward_2mm\';
 if Options.normalizeCostFunction
-    ref_solution=load('C:\Gil\Collaborations\MatthewTresch\Zhong_ParameterEstimation\Optimization\sol_val_optJointPassive_Datarat23baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
@@ -871,7 +871,7 @@ sol_val.QsQdots_col_unsc=QsQdots_col;
 sol_val.Qd2dot_col_unsc=Qd2dot_col;
 sol_val.Qd2dot_prescribed=Qd2dot_prescribed;
 
-
+save('sol_val.mat','sol_val','x','Options','resnorm','residual','exitflag','output');
 
 
 function f=costfun(x,guess,varnames,Options,expdata,F,ref_solution)
@@ -1431,8 +1431,8 @@ function [c,ceq]=nonlcon(x,varnames,Options)
             K13=Kstiffi(5);
             K23=Kstiffi(6);
         end
-        c=[c; K12^2-K11*K22; K23^2-K11*K33; K23^2-K22*K33];
-        c=-[c; K11*K22*K33+2*K12*K13*K23-K11*(K23^2)-K22*(K13^2)-K33*(K12^2)]; %(detK >0)
+        c=[K12^2-K11*K22; K13^2-K11*K33; K23^2-K22*K33];
+        c=[c; -(K11*K22*K33+2*K12*K13*K23-K11*(K23^2)-K22*(K13^2)-K33*(K12^2))]; %(detK >0)
     end
 
     
