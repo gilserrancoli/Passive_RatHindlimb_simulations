@@ -29,10 +29,10 @@ Options.optimizePassiveJointEl=1;
     Options.KDwithinteractionterms=1;
         Options.nointeraction_hipankle=1;
 Options.individualpassiveprop=0; %consider different stiffness and damper parameters for each case (each perturbation)
-    Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters have the same values (ideal for testing variable inertia parameters for each perturbation)
+    Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters for the same perturbation have the same values (ideal for testing variable inertia parameters for each perturbation)
 
 Options.removefirstpertRat22=1;
-Options.normalizeCostFunction=0;
+Options.normalizeCostFunction=1;
 
 Options.secondfolder=1;
 main_folder='Datarat25\baseline_forward_2mm\';
@@ -544,7 +544,8 @@ options = optimoptions('lsqnonlin', ...
 'UseParallel',true, ...
 'SpecifyObjectiveGradient',false, ...
 'JacobPattern',sparse(double(Jpattern)), ...
-'FiniteDifferenceType','forward');
+'FiniteDifferenceType','forward',...
+'MaxFunctionEvaluations',1e6);
 fprintf('Start optimization');
 [x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x, guess, idx_var, varnames, Options, expdata,Fmap,ref_solution,all_trc_data),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 fprintf('Optimization finished');
