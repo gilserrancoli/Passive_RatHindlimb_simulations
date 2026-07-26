@@ -28,18 +28,18 @@ Options.optimizePassiveJointEl=1;
     Options.orderPassiveJoint=1; %either 1 or 3
     Options.KDwithinteractionterms=1;
         Options.nointeraction_hipankle=1;
-Options.individualpassiveprop=1; %consider different stiffness and damper parameters for each case (each perturbation)
-    Options.samepassiveprop=0; %only if previous is 0, all stiffness and damping parameters for the same perturbation have the same values (ideal for testing variable inertia parameters for each perturbation)
+Options.individualpassiveprop=0; %consider different stiffness and damper parameters for each case (each perturbation)
+    Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters for the same pertoptInertiaParamurbation have the same values (ideal for testing variable inertia parameters for each perturbation)
 
 
 Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
 
 Options.secondfolder=1;
-main_folder='Datarat25\baseline_forward_2mm\';
-main_folder2='Datarat25\baseline_backward_2mm\';
+main_folder='Datarat25\anklecut_forward_2mm\';
+main_folder2='Datarat25\anklecut_backward_2mm\';
 if Options.normalizeCostFunction
-    ref_solution=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('sol_val_optJointPassive_Datarat25achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
@@ -404,7 +404,7 @@ if Options.optimizePassiveJointEl
     if Options.individualpassiveprop==1
         ntrials4passprop=size(fieldnames(expdata),1);
     elseif (Options.individualpassiveprop==0)&&(Options.samepassiveprop==1)
-        ntrials4passprop=size(fieldnames(expdata),1);
+        ntrials4passprop=1;
         list4passprop=ones(1,size(fieldnames(expdata),1));
     elseif contains(main_folder,'May2025')&&Options.secondfolder==0
         ntrials4passprop=4;
@@ -478,7 +478,7 @@ A=[];
 b=[];
 Aeq=[];
 beq=[];
-options=optimset('Display','iter','UseParallel',true);
+options=optimset('Display','iter','UseParallel',true,'MaxIter',4000);
 options.MaxFunEvals =5e4;
 [x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 
