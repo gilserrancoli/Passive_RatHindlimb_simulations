@@ -36,10 +36,10 @@ Options.removefirstpertRat22=1;
 Options.normalizeCostFunction=1;
 
 Options.secondfolder=1;
-main_folder='Datarat25\anklecut_forward_2mm\';
-main_folder2='Datarat25\anklecut_backward_2mm\';
+main_folder='Datarat25\baseline_forward_2mm\';
+main_folder2='Datarat25\baseline_backward_2mm\';
 if Options.normalizeCostFunction
-    ref_solution=load('sol_val_optJointPassive_Datarat25achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
@@ -224,8 +224,8 @@ scaling.qd2dot=1000;
 scaling.QsQdots=repmat([scaling.q scaling.qdot],1,ndofs);
 scaling.T=1;
 scaling.res=0.02;
-scaling.Kstiff=0.1;
-scaling.Ddamp=0.1;
+scaling.Kstiff=1;
+scaling.Ddamp=1;
 scaling.theta=0.1;
 scaling.inertiaparam=repmat([0.05 1e-5 0.05],1,3);
 scaling.Inertiapassparam=0.01;
@@ -295,8 +295,8 @@ if Options.orderPassiveJoint==1
         bounds.K.lower=[0 0 0];
         bounds.D.lower=[0 0 0];
     end
-    bounds.K.upper=10;
-    bounds.D.upper=10;
+    bounds.K.upper=1;
+    bounds.D.upper=1;
     bounds.Inertiapassparam.lower=0;
     bounds.Inertiapassparam.upper=10;
     if Options.useRestingMoments
@@ -479,6 +479,13 @@ b=[];
 Aeq=[];
 beq=[];
 options=optimset('Display','iter','UseParallel',true,'MaxIter',4000);
+nInspect=100;
+% options=optimset('Display','iter','UseParallel',true,'MaxIter',4000,...
+%     'OutputFcn', ...
+%         @(x,optimValues,state) ...
+%         inspectLsqnonlin(x,optimValues,state,nInspect,lb,ub));
+
+% options=optimset('Display','iter','UseParallel',true,'MaxIter',4000,'typicalX',typicalX,'FinDiffType','central');
 options.MaxFunEvals =5e4;
 [x,resnorm,residual,exitflag,output] = lsqnonlin(@(x)costfun(x,guess,varnames,Options,expdata,F,ref_solution),x0,lb,ub,A,b,Aeq,beq,@(x)nonlcon(x,varnames,Options),options);
 
