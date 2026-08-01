@@ -30,10 +30,11 @@ Options.optimizePassiveJointEl=1;
         Options.nointeraction_hipankle=1;
 Options.individualpassiveprop=0; %consider different stiffness and damper parameters for each case (each perturbation)
     Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters for the same pertoptInertiaParamurbation have the same values (ideal for testing variable inertia parameters for each perturbation)
-
+Options.normalizeCostFunction=1;
+Options.minimizeR2directly=1;
 
 Options.removefirstpertRat22=1;
-Options.normalizeCostFunction=1;
+
 
 Options.secondfolder=1;
 main_folder='Datarat25\baseline_forward_2mm\';
@@ -309,7 +310,7 @@ if Options.orderPassiveJoint==1
         bounds.theta0.upper=bounds_theta0.upper(find(Options.dofs_to_track));
     end
 end
-bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9 -0.001]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
+bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9  -0.01]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 bounds.inertiaParam.upper=[0.025 1.e-5 -0.005 0.015 1e-6 0.020 0.0050 1e-7      0]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 
 
@@ -478,14 +479,14 @@ A=[];
 b=[];
 Aeq=[];
 beq=[];
-options=optimset('Display','iter','UseParallel',true,'MaxIter',4000);
+% options=optimset('Display','iter','UseParallel',true,'MaxIter',4000);
 
-% options = optimoptions('lsqnonlin', ...
-%     'Algorithm','interior-point', ...
-%     'Display','iter', ...
-%     'UseParallel',true, ...
-%     'MaxIterations',4000, ...
-%     'MaxFunctionEvaluations',5e4);
+options = optimoptions('lsqnonlin', ...
+    'Algorithm','interior-point', ...
+    'Display','iter', ...
+    'UseParallel',true, ...
+    'MaxIterations',4000, ...
+    'MaxFunctionEvaluations',5e4);
 
 nInspect=100;
 % options=optimset('Display','iter','UseParallel',true,'MaxIter',4000,...
@@ -1069,11 +1070,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_flx=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,8));
-                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_hip_flex((k-1)*d+j)=out(8);
+                    PassiveM_hip_flx_all((k-1)*d+j)=PassiveM_hip_flx;
                 else
-                    f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,8));
+                        f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/(vari*1e5)];
+                    else
+                        f=[f; (out(8)-T_hip_flx-PassiveM_hip_flx)/scaling.T];
+                    end
                 end
             end
 
@@ -1103,11 +1109,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_add=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,9));
-                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_hip_add((k-1)*d+j)=out(9);
+                    PassiveM_hip_add_all((k-1)*d+j)=PassiveM_hip_add;
                 else
-                    f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,9));
+                        f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/(vari*1e5)];
+                    else
+                        f=[f; (out(9)-T_hip_add-PassiveM_hip_add)/scaling.T];
+                    end
                 end
             end
 
@@ -1137,11 +1148,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_hip_rot=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,10));
-                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_hip_rot((k-1)*d+j)=out(10);
+                    PassiveM_hip_rot_all((k-1)*d+j)=PassiveM_hip_rot;
                 else
-                    f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,10));
+                        f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/(vari*1e5)];
+                    else
+                        f=[f; (out(10)-T_hip_rot-PassiveM_hip_rot)/scaling.T];
+                    end
                 end
             end
 
@@ -1182,11 +1198,17 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_knee_flx=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,11));
-                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5)];
+                
+                if Options.minimizeR2directly
+                    SkeletalMoment_knee_flx((k-1)*d+j)=out(11);
+                    PassiveM_knee_flx_all((k-1)*d+j)=PassiveM_knee_flx;
                 else
-                    f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,11));
+                        f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/(vari*1e5)];
+                    else
+                        f=[f; (out(11)-T_knee_flx-PassiveM_knee_flx)/scaling.T];
+                    end
                 end
             end
 
@@ -1227,11 +1249,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_flx=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,12));
-                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_ankle_flx((k-1)*d+j)=out(12);
+                    PassiveM_ankle_flx_all((k-1)*d+j)=PassiveM_ankle_flx;
                 else
-                    f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,12));
+                        f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/(vari*1e5)];
+                    else
+                        f=[f; (out(12)-T_ankle_flx-PassiveM_ankle_flx)/scaling.T];
+                    end
                 end
             end
 
@@ -1261,11 +1288,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_add=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,13));
-                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_ankle_add((k-1)*d+j)=out(13);
+                    PassiveM_ankle_add_all((k-1)*d+j)=PassiveM_ankle_add;
                 else
-                    f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,13));
+                        f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/(vari*1e5)];
+                    else
+                        f=[f; (out(13)-T_ankle_add-PassiveM_ankle_add)/scaling.T];
+                    end
                 end
             end
 
@@ -1295,11 +1327,16 @@ for i=1:size(nametrials,1)
                 else
                         PassiveM_ankle_int=0;
                 end
-                if Options.normalizeCostFunction
-                    vari=var(ref_solution.sol_val.out{i}(:,14));
-                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5)];
+                if Options.minimizeR2directly
+                    SkeletalMoment_ankle_int((k-1)*d+j)=out(14);
+                    PassiveM_ankle_int_all((k-1)*d+j)=PassiveM_ankle_int;
                 else
-                    f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                    if Options.normalizeCostFunction
+                        vari=var(ref_solution.sol_val.out{i}(:,14));
+                        f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/(vari*1e5)];
+                    else
+                        f=[f; (out(14)-T_ankle_int-PassiveM_ankle_int)/scaling.T];
+                    end
                 end
             end
 
@@ -1308,6 +1345,22 @@ for i=1:size(nametrials,1)
             end
 
         end
+    end
+    if Options.minimizeR2directly
+        R2_hip_flex=computeR2(SkeletalMoment_hip_flex',T_hip_flx'+PassiveM_hip_flx_all');
+        f=[f; 1-R2_hip_flex];
+        % R2_hip_add=computeR2(SkeletalMoment_hip_add',T_hip_add'+PassiveM_hip_add_all');
+        % f=[f; 1-R2_hip_add];
+        % R2_hip_rot=computeR2(SkeletalMoment_hip_rot',T_hip_rot'+PassiveM_hip_rot_all');
+        % f=[f; 1-R2_hip_rot];
+        R2_knee_flex=computeR2(SkeletalMoment_knee_flx',T_knee_flx'+PassiveM_knee_flx_all');
+        f=[f; 1-R2_knee_flex];
+        R2_ankle_flex=computeR2(SkeletalMoment_ankle_flx',T_ankle_flx'+PassiveM_ankle_flx_all');
+        f=[f; 1-R2_ankle_flex];
+        % R2_ankle_add=computeR2(SkeletalMoment_ankle_add',T_ankle_add'+PassiveM_ankle_add_all');
+        % f=[f; 1-R2_ankle_add];
+        % R2_ankle_int=computeR2(SkeletalMoment_ankle_int',T_ankle_int'+PassiveM_ankle_int_all');
+        % f=[f; 1-R2_ankle_int];
     end
 
 end
