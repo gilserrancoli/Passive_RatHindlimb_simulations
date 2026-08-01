@@ -29,6 +29,7 @@ Options.optimizePassiveJointEl=1;
     Options.KDwithinteractionterms=1;
         Options.nointeraction_hipankle=1;
 Options.individualpassiveprop=0; %consider different stiffness and damper parameters for each case (each perturbation)
+
     Options.samepassiveprop=1; %only if previous is 0, all stiffness and damping parameters for the same pertoptInertiaParamurbation have the same values (ideal for testing variable inertia parameters for each perturbation)
 Options.normalizeCostFunction=1;
 Options.minimizeR2directly=1;
@@ -37,10 +38,10 @@ Options.removefirstpertRat22=1;
 
 
 Options.secondfolder=1;
-main_folder='Datarat25\baseline_forward_2mm\';
-main_folder2='Datarat25\baseline_backward_2mm\';
+main_folder='Datarat23\anklecut_forward\';
+main_folder2='Datarat23\anklecut_backward_\';
 if Options.normalizeCostFunction
-    ref_solution=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
+    ref_solution=load('sol_val_optJointPassive_Datarat23achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 else
     ref_solution=[];
 end
@@ -311,6 +312,7 @@ if Options.orderPassiveJoint==1
     end
 end
 bounds.inertiaParam.lower=[0.005 1.e-7 -0.020 0.002 1e-8 0.010 0.0005 1e-9  -0.01]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
+
 bounds.inertiaParam.upper=[0.025 1.e-5 -0.005 0.015 1e-6 0.020 0.0050 1e-7      0]./scaling.inertiaparam; %mfem Izfem yfem mtib Iztib ytib mfoot Izfoot yfoot 
 
 
@@ -480,6 +482,7 @@ b=[];
 Aeq=[];
 beq=[];
 % options=optimset('Display','iter','UseParallel',true,'MaxIter',4000);
+
 
 options = optimoptions('lsqnonlin', ...
     'Algorithm','interior-point', ...
