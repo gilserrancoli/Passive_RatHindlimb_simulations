@@ -16,18 +16,18 @@ if weighting_acc2var
     % R25_a=load('sol_val_optJointPassive_Datarat25achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID_normCostF.mat');
 
 
-    R21_b=load('sol_val_rat21_norm.mat');
-    R21_a=load('sol_val_rat21_achillescut_norm.mat');
-    R22_b=load('sol_val_rat22_norm.mat');
-    R22_a=load('sol_val_rat22_achillescut_norm.mat');
-    R23_b=load('sol_val_rat23_norm.mat');
-    R23_a=load('sol_val_rat23_achillescut_norm.mat');
-    R24_b=load('sol_val_rat24_norm.mat');
-    R24_a=load('sol_val_rat24_achillescut_norm.mat');
-    R25_b=load('sol_val_rat25_norm.mat');
-    R25_a=load('sol_val_rat25_achillescut_norm.mat');
+    R21_b=ReadData('21','norm','baseline'); %load('sol_val_rat21_norm.mat');
+    R21_a=ReadData('21','norm','achillescut'); %load('sol_val_rat21_achillescut_norm.mat');
+    R22_b=ReadData('22','norm','baseline');
+    R22_a=ReadData('22','norm','achillescut');
+    R23_b=ReadData('23','norm','baseline');
+    R23_a=ReadData('23','norm','achillescut');
+    R24_b=ReadData('24','norm','baseline');
+    R24_a=ReadData('24','norm','achillescut');
+    R25_b=ReadData('25','norm','baseline');
+    R25_a=ReadData('25','norm','achillescut');
 
-    xlsxname='all_JointPassiveParam_FB_weightvar.xlsx';
+    xlsxname='all_JointPassiveParam_FB_weightvar_byPert.xlsx';
 
 else
     R21_b=load('sol_val_optJointPassive_Datarat21baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
@@ -41,7 +41,7 @@ else
     R25_b=load('sol_val_optJointPassive_Datarat25baselineFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
     R25_a=load('sol_val_optJointPassive_Datarat25achillescutFB_tolem5_Jminres777_JpenKDT1e-3_JminKDT1e-5_JminInertiaP1e-2_nokneemarker2D_pert2_wKDinteractionsnoanklehip_ParamID.mat');
 
-    xlsxname='all_JointPassiveParam_FB_NOweightvar.xlsx';
+    xlsxname='all_JointPassiveParam_FB_NOweightvar_byPert.xlsx';
 
 end
 table_passive=cell2table({'Khip -10';'Kknee -10';'Kankle -10';'Khip-knee -10';'Kknee-ankle -10';...    
@@ -73,8 +73,23 @@ table_passive=addColumn(R25_a,'rat25 achillescut',table_passive);
 
 writetable(table_passive,xlsxname,'Sheet','Stiffness_damping');
 
-table_inertia=cell2table({' m femur';'I_G femur';'d CoM femur';'m tibia';'I_G tibia';'d CoM tibia'; 'm foot';'I_G foot';'d CoM foot'});
-table_inertia=addColumn_inertia(R21_b,'rat21 baseline',table_inertia);
+names = {'m femur'; 'I_G femur'; 'd CoM femur'; ...
+         'm tibia'; 'I_G tibia'; 'd CoM tibia'; ...
+         'm foot'; 'I_G foot'; 'd CoM foot'};
+
+suffixes = [30 20 10 0 -10];
+
+table_inertia = cell(numel(names)*numel(suffixes),1);
+
+k = 1;
+for s = suffixes
+    for i = 1:numel(names)
+        table_inertia{k} = sprintf('%s %d', names{i}, s);
+        k = k + 1;
+    end
+end
+
+table_inertia = cell2table(table_inertia,'VariableNames',{'Parameter'});table_inertia=addColumn_inertia(R21_b,'rat21 baseline',table_inertia);
 table_inertia=addColumn_inertia(R21_a,'rat21 achillescut',table_inertia);
 table_inertia=addColumn_inertia(R22_b,'rat22 baseline',table_inertia);
 table_inertia=addColumn_inertia(R22_a,'rat22 achillescut',table_inertia);
@@ -141,9 +156,9 @@ R21_a.R2demean(15:16,:)=NaN;
 R21_a.R2demean(17:20,:)=R21_a.R2demean_aux(13:16,:);
 
 if weighting_acc2var
-    xlsxname='all_R2values_FB_weightvar.xlsx';
+    xlsxname='all_R2values_FB_weightvar_byPert.xlsx';
 else
-    xlsxname='all_R2values_FB_NOweightvar.xlsx';
+    xlsxname='all_R2values_FB_NOweightvar_byPert.xlsx';
 end
 %r^2
 table_r2=cell2table({'F- r^2 hip 30';'F- r^2 knee 30';'F- r^2 ankle 30';'F- r^2 multi 30';...
@@ -299,6 +314,83 @@ for i=1:size(R24_b.sol_val.out,2)
 end
 
 
+function  ratdata=ReadData(rat,norm,type)
+
+if strcmp(type,'baseline')
+    sufixtype='';
+else
+    sufixtype='achillescut_';
+end
+
+for i=1:5
+    switch i
+        case 1
+            sufixpert='pert30';
+            idx=1:5;
+            idx_K0=1:3;
+            if strcmp(rat,'21')
+                idx_trial=[1 8 9 16];
+            else
+                idx_trial=[1 10 11 20];
+            end
+        case 2
+            sufixpert='pert20';
+            idx=6:10;
+            idx_K0=4:6;
+            if strcmp(rat,'21')
+                idx_trial=[2 7 10 15];
+            else
+                idx_trial=[2 9 12 19];
+            end
+        case 3
+            sufixpert='pert10';
+            idx=11:15;
+            idx_K0=7:9;
+            if strcmp(rat,'21')
+                idx_trial=[3 6 11 14];
+            else
+                idx_trial=[3 8 13 18];
+            end
+        case 4
+            sufixpert='pert0';
+            idx=16:20;
+            idx_K0=10:12;
+            if strcmp(rat,'21')
+                idx_trial=[4 5 12 13];
+            else
+                idx_trial=[4 7 14 17];
+            end
+        case 5
+            sufixpert='pertm10';
+            idx=21:25;
+            idx_K0=13:15;
+            idx_trial=[5 6 15 16];
+    end
+    if strcmp(rat,'21') && strcmp(sufixpert,'pertm10')
+    else
+        data=load(['sol_val_rat' rat '_' sufixtype 'uniquepass_' norm '_' sufixpert '.mat']);
+
+        
+            
+        ratdata.sol_val.Kstiff_unsc(idx,1)=data.sol_val.Kstiff_unsc;
+        ratdata.sol_val.K0_unsc(idx_K0,1)=data.sol_val.K0_unsc;
+        ratdata.sol_val.Ddamp_unsc(idx)=data.sol_val.Ddamp_unsc;
+        ratdata.sol_val.inertiaParam_unsc(:,i)=data.sol_val.inertiaParam_unsc;
+        
+        ratdata.sol_val.out(idx_trial)=data.sol_val.out;
+        ratdata.sol_val.out_model(idx_trial)=data.sol_val.out_model;
+
+        ratdata.sol_val.tgrid(idx_trial)=data.sol_val.tgrid;
+        ratdata.sol_val.t2plot(idx_trial)=data.sol_val.t2plot;
+    end
+    
+
+end
+
+
+
+end
+
 function table_passive=addColumn(data,columnLabel,table_passive)
 ncolumns_i=size(table_passive,2);
 nrows=size(table_passive,1);
@@ -329,7 +421,17 @@ ncolumns_i=size(table_inertia,2);
 nrows=size(table_inertia,1);
 n=ncolumns_i+1;
 table_inertia.(columnLabel)=NaN(nrows,1);
-table_inertia.(columnLabel)(1:9)=data.sol_val.inertiaParam_unsc;
+    for i=1:5
+        if contains(columnLabel,'rat21')&&i==5
+        else
+            try
+            table_inertia.(columnLabel)((i-1)*9+1:i*9)=data.sol_val.inertiaParam_unsc(:,i);
+            catch
+                keyboard;
+            end
+        end
+    end
+
 end
 
 function [r2all, R2all, R2all_dmean]=ComputeR2values(data)
@@ -337,7 +439,11 @@ function [r2all, R2all, R2all_dmean]=ComputeR2values(data)
     for i=1:size(data.sol_val.out_model,2)
         I=[8,11,12]; %hip knee ankle
         for j=1:3 
+            try
             r_aux=corrcoef(data.sol_val.out_model{i}(:,I(j)),data.sol_val.out{i}(:,I(j)));
+            catch
+                keyboard;
+            end
             r2all(i,j)=r_aux(2)^2;
         end
         v1=data.sol_val.out_model{i}(:,[8 11 12]);
